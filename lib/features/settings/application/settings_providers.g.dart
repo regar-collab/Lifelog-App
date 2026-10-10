@@ -46,6 +46,56 @@ final class DeepSeekApiKeyProvider
 
 String _$deepSeekApiKeyHash() => r'971a8d35a81f9a6dc8e3994737fb64efcf20e92c';
 
+/// 已保存的高德 Android Key。
+///
+/// 这个 Key 是**运行时**注入给高德 SDK 的（MapsInitializer.setApiKey），
+/// 因为它绑定使用者的签名 SHA1，没法预先打包进 APK ——
+/// 每个人得申请自己的。
+
+@ProviderFor(amapApiKey)
+final amapApiKeyProvider = AmapApiKeyProvider._();
+
+/// 已保存的高德 Android Key。
+///
+/// 这个 Key 是**运行时**注入给高德 SDK 的（MapsInitializer.setApiKey），
+/// 因为它绑定使用者的签名 SHA1，没法预先打包进 APK ——
+/// 每个人得申请自己的。
+
+final class AmapApiKeyProvider
+    extends $FunctionalProvider<AsyncValue<String?>, String?, FutureOr<String?>>
+    with $FutureModifier<String?>, $FutureProvider<String?> {
+  /// 已保存的高德 Android Key。
+  ///
+  /// 这个 Key 是**运行时**注入给高德 SDK 的（MapsInitializer.setApiKey），
+  /// 因为它绑定使用者的签名 SHA1，没法预先打包进 APK ——
+  /// 每个人得申请自己的。
+  AmapApiKeyProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'amapApiKeyProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$amapApiKeyHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<String?> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<String?> create(Ref ref) {
+    return amapApiKey(ref);
+  }
+}
+
+String _$amapApiKeyHash() => r'34334186aff97bd460451c20f7b6a2c62ae3b7d3';
+
 /// 按当前 Key 构造好的 DeepSeek 客户端。
 ///
 /// 没配 Key 时直接抛 [DeepSeekException]，让调用方给出友好提示；

@@ -18,18 +18,25 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   final TextEditingController _keyController = TextEditingController();
+  final TextEditingController _amapController = TextEditingController();
 
   /// 只在首次拿到已保存的 Key 时回填一次，避免每次重建都覆盖用户输入
   bool _initialized = false;
+  bool _amapInitialized = false;
   bool _obscure = true;
   bool _saving = false;
   bool _testing = false;
   String? _result;
   bool _resultOk = false;
 
+  bool _amapSaving = false;
+  String? _amapResult;
+  bool _amapResultOk = false;
+
   @override
   void dispose() {
     _keyController.dispose();
+    _amapController.dispose();
     super.dispose();
   }
 
@@ -50,6 +57,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _saving = false;
       _resultOk = true;
       _result = key.isEmpty ? '已清空 API Key' : '已保存到本机加密存储';
+    });
+  }
+
+  Future<void> _saveAmapKey() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _amapSaving = true);
+
+    final String key = _amapController.text.trim();
+    if (key.isEmpty) {
+      await SecureSettings.instance.delete(AppConstants.keyAmapApiKey);
+    } else {
+      await SecureSettings.instance.setAmapApiKey(key);
+    }
+    ref.invalidate(amapApiKeyProvider);
+
+    if (!mounted) return;
+    setState(() {
+      _amapSaving = false;
+      _amapResultOk = true;
+      _amapResult = key.isEmpty
+          ? '已清空高德 Key'
+          : '已保存。回到轨迹页就能看到地图了。';
     });
   }
 
@@ -222,6 +251,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 24),
+        const _SectionTitle('高德地图（轨迹功能用）'),
+        _buildAmapCard(context, theme),
+        const SizedBox(height: 24),
         const _SectionTitle('轨迹'),
         _buildAccuracyCard(theme),
         const SizedBox(height: 24),
@@ -245,6 +277,96 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         const SizedBox(height: 32),
       ],
+    );
+  }
+
+  /// 高德地图 Key 的配置卡片。
+  ///
+  /// 为什么要在 App 里填而不是打包进 APK：高德 Key 绑定使用者的
+  /// 签名 SHA1，每个人都不一样，没法预先打包。所以由使用者自己申请、
+  /// 自己填，存在手机本地。
+  Widget _buildAmapCard(BuildContext context, ThemeData theme) {
+    final AsyncValue<String?> keyAsync = ref.watch(amapApiKeyProvider);
+
+    if (!_amapInitialized) {
+      switch (keyAsync) {
+        case AsyncData(:final String? value):
+          _amapController.text = value ?? '';
+          _amapInitialized = true;
+        default:
+          break;
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _amapController,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: '高德 Android Key',
+                hintText: '32 位十六进制串',
+                prefixIcon: Icon(Icons.map_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _amapSaving ? null : _saveAmapKey,
+              icon: _amapSaving
+                  ? const _TinySpinner()
+                  : const Icon(Icons.save_outlined, size: 18),
+              label: const Text('保存'),
+            ),
+            if (_amapResult != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (_amapResultOk
+                          ? theme.colorScheme.primaryContainer
+                          : theme.colorScheme.errorContainer)
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      _amapResultOk
+                          ? Icons.check_circle_outline
+                          : Icons.error_outline,
+                      size: 18,
+                      color: _amapResultOk
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.error,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_amapResult!,
+                          style: theme.textTheme.bodySmall),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              '地图底图由高德提供，需要一个 Android Key。'
+              '去 lbs.amap.com 免费申请（要实名认证），'
+              '填「包名 + 签名 SHA1」。\n\n'
+              'Key 只存在这台手机上，不会上传。'
+              '不填也能用其它功能，只是轨迹页看不到地图。',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.outline, height: 1.5),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

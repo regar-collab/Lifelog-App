@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lifelog/core/utils/coordinate.dart';
 import 'package:lifelog/core/utils/date_utils.dart';
+import 'package:lifelog/data/services/native_config.dart';
 import 'package:lifelog/data/db/app_database.dart';
 import 'package:lifelog/features/track/application/track_providers.dart';
 import 'package:lifelog/features/track/application/track_recorder.dart';
 import 'package:lifelog/features/settings/application/app_settings_providers.dart';
+import 'package:lifelog/features/settings/application/settings_providers.dart';
 import 'package:lifelog/features/steps/application/step_tracker.dart';
 import 'package:lifelog/features/track/data/track_repository.dart';
 import 'package:lifelog/features/track/presentation/widgets/amap_view.dart';
@@ -351,11 +353,27 @@ class TrackPage extends ConsumerWidget {
   Widget _buildMap(WidgetRef ref, ThemeData theme) {
     final AsyncValue<List<LatLng>> pointsAsync =
         ref.watch(trackMapPointsProvider);
+    final AsyncValue<String?> keyAsync = ref.watch(amapApiKeyProvider);
 
     final List<LatLng> points = switch (pointsAsync) {
       AsyncData(:final List<LatLng> value) => value,
       _ => const [],
     };
+
+    final String? userKey = switch (keyAsync) {
+      AsyncData(:final String? value) => value,
+      _ => null,
+    };
+
+    // 两个来源，优先用用户在设置页填的：
+    // - 用户在 App 内配置的（存加密存储）
+    // - 构建时注入到 AndroidManifest 的（自己编译的版本才有）
+    //   不查一下 manifest 的话，自己编译的版本会误报「还没配置」
+    final String? apiKey = (userKey != null && userKey.trim().isNotEmpty)
+        ? userKey.trim()
+        : NativeConfig.bundledAmapKey;
+
+    final bool hasKey = apiKey != null;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
@@ -363,8 +381,33 @@ class TrackPage extends ConsumerWidget {
         height: 320,
         child: Stack(
           children: [
-            AmapView(points: points),
-            if (points.isEmpty)
+            AmapView(points: points, apiKey: apiKey),
+            if (!hasKey)
+              Positioned.fill(
+                child: Container(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.94),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.key_outlined,
+                          size: 30, color: theme.colorScheme.outline),
+                      const SizedBox(height: 10),
+                      Text('还没配置高德 Key', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 6),
+                      Text(
+                        '轨迹要画在高德地图上，需要你自己的 Key。\n'
+                        '去设置页填一下就能用了。',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (points.isEmpty)
               Positioned(
                 left: 0,
                 right: 0,

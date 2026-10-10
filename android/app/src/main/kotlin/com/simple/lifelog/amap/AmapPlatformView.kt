@@ -31,6 +31,7 @@ class AmapPlatformView(
     private val context: Context,
     messenger: BinaryMessenger,
     id: Int,
+    apiKey: String?,
 ) : PlatformView, MethodChannel.MethodCallHandler {
 
     private val mapView: MapView = MapView(context)
@@ -38,6 +39,13 @@ class AmapPlatformView(
     private var polyline: Polyline? = null
 
     init {
+        // 用户自己在设置页配的 Key 优先。
+        // 这条必须在创建 MapView 之前调用，且会覆盖 AndroidManifest 里
+        // 那个空的 ${AMAP_KEY} 占位符。
+        if (!apiKey.isNullOrBlank()) {
+            MapsInitializer.setApiKey(apiKey)
+        }
+
         // 高德 SDK 8.1.0 起强制要求先声明隐私合规，
         // 不调用的话地图只会显示一片灰色网格（而且不报错，很难查）。
         MapsInitializer.updatePrivacyShow(context, true, true)
@@ -95,8 +103,7 @@ class AmapPlatformView(
      * 画轨迹。
      *
      * 传进来的点必须已经是 GCJ-02 坐标 —— 高德底图用的是加密坐标，
-     * 直接喂 WGS84 的话整条线会偏移几百米。转换在 Dart 侧做（CoordinateConverter），
-     * 那边已经验证过偏移量。
+     * 直接喂 WGS84 的话整条线会偏移几百米。转换在 Dart 侧做（CoordinateConverter）。
      */
     private fun drawTrack(call: MethodCall) {
         val raw = call.argument<List<List<Double>>>("points")

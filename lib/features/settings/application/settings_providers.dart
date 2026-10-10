@@ -10,6 +10,16 @@ Future<String?> deepSeekApiKey(Ref ref) {
   return SecureSettings.instance.deepSeekApiKey;
 }
 
+/// 已保存的高德 Android Key。
+///
+/// 这个 Key 是**运行时**注入给高德 SDK 的（MapsInitializer.setApiKey），
+/// 因为它绑定使用者的签名 SHA1，没法预先打包进 APK ——
+/// 每个人得申请自己的。
+@riverpod
+Future<String?> amapApiKey(Ref ref) {
+  return SecureSettings.instance.amapApiKey;
+}
+
 /// 按当前 Key 构造好的 DeepSeek 客户端。
 ///
 /// 没配 Key 时直接抛 [DeepSeekException]，让调用方给出友好提示；

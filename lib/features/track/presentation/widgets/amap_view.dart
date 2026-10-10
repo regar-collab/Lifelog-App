@@ -7,15 +7,26 @@ import 'package:lifelog/core/utils/coordinate.dart';
 /// 高德地图视图。
 ///
 /// 原生侧实现在 android/app/src/main/kotlin/.../amap/ 里，
-/// 只暴露 drawTrack / clearTrack / moveTo 三个方法。
+/// 只暴露 drawTrack / clearTrack 两个方法。
 ///
 /// **传进来的点必须是 GCJ-02 坐标** —— 高德底图用的是加密坐标，
 /// 直接喂 WGS84 会让整条轨迹偏到隔壁街区（实测偏 570 米）。
+///
+/// [apiKey] 由用户在设置页填，通过 creationParams 传给原生侧，
+/// 原生侧在创建地图前用 MapsInitializer.setApiKey 注入。
+/// 不填的话地图出不来，但不影响其它功能。
 class AmapView extends StatefulWidget {
-  const AmapView({super.key, this.points = const []});
+  const AmapView({
+    super.key,
+    this.points = const [],
+    this.apiKey,
+  });
 
   /// 轨迹点（GCJ-02）。空列表表示只显示地图，不画线。
   final List<LatLng> points;
+
+  /// 用户配置的高德 Android Key
+  final String? apiKey;
 
   @override
   State<AmapView> createState() => _AmapViewState();
@@ -32,6 +43,11 @@ class _AmapViewState extends State<AmapView> {
 
     return AndroidView(
       viewType: 'lifelog/amap',
+      // Key 在建图之前就得给到原生侧，所以走 creationParams 而不是走 method channel
+      creationParams: <String, Object?>{
+        'apiKey': widget.apiKey ?? '',
+      },
+      creationParamsCodec: const StandardMessageCodec(),
       onPlatformViewCreated: _onPlatformViewCreated,
     );
   }

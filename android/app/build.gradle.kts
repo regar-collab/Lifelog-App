@@ -57,6 +57,18 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // 显式打开混淆，并挂上我们的 keep 规则。
+            //
+            // 注意：不能省掉 proguard-rules.pro —— 高德的 .so 原生库会按
+            // 原始类名做 JNI 反射查找，不 keep 的话 release 版一进地图就闪退
+            // （JNI DETECTED ERROR: java_class == null）。详见该文件顶部注释。
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

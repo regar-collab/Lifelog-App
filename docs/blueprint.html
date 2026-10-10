@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lifelog · 项目蓝图</title>
+<style>
+  :root {
+    --blue:      #3B6EF6;
+    --blue-soft: #EEF2FF;
+    --green:     #2E9E6B;
+    --green-soft:#E9F7F0;
+    --amber:     #C77A16;
+    --amber-soft:#FDF3E3;
+    --rose:      #D14C5E;
+    --rose-soft: #FDECEF;
+    --violet:    #7C5CD6;
+    --violet-soft:#F1ECFD;
+    --cyan:      #16899B;
+    --cyan-soft: #E6F6F8;
+    --ink:       #1A1B21;
+    --ink-2:     #5A6072;
+    --ink-3:     #8B91A3;
+    --line:      #E3E6F0;
+    --paper:     #FFFFFF;
+    --bg:        #F4F5FA;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+                 "Hiragino Sans GB", sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 1360px; margin: 0 auto; }
+
+  /* ── 页头 ───────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(135deg, #3B6EF6 0%, #6C7AE0 55%, #9575CD 100%);
+    border-radius: 20px;
+    padding: 34px 40px;
+    color: #fff;
+    margin-bottom: 26px;
+    box-shadow: 0 12px 32px rgba(59,110,246,.22);
+  }
+  .hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: .5px; }
+  .hero p  { margin: 0; opacity: .92; font-size: 14px; }
+  .hero .tags { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .hero .tags span {
+    background: rgba(255,255,255,.18);
+    border: 1px solid rgba(255,255,255,.28);
+    padding: 3px 12px; border-radius: 20px; font-size: 12px;
+  }
+
+  /* ── 区块 ───────────────────────────────────────── */
+  .section {
+    background: var(--paper);
+    border-radius: 18px;
+    padding: 26px 30px 30px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 10px rgba(26,27,33,.05);
+  }
+  .section > h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section > h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 8px;
+    background: var(--blue-soft); color: var(--blue);
+    font-size: 13px; font-weight: 700;
+  }
+  .section > .sub {
+    margin: 0 0 22px 36px;
+    color: var(--ink-3); font-size: 12.5px;
+  }
+
+  /* ── 卡片网格 ───────────────────────────────────── */
+  .grid   { display: grid; gap: 14px; }
+  .g2     { grid-template-columns: repeat(2, 1fr); }
+  .g3     { grid-template-columns: repeat(3, 1fr); }
+  .g4     { grid-template-columns: repeat(4, 1fr); }
+
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 15px 16px;
+    background: #FCFCFE;
+  }
+  .card h4 {
+    margin: 0 0 10px; font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .card h4 .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+  }
+  .card ul { margin: 0; padding: 0; list-style: none; }
+  .card li {
+    font-size: 12.5px; color: var(--ink-2);
+    padding: 3px 0; display: flex; gap: 8px;
+  }
+  .card li b {
+    color: var(--ink); font-weight: 600;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+  }
+  .card li .v {
+    color: var(--ink-3); font-family: Consolas, monospace; font-size: 11.5px;
+    margin-left: auto; flex: none;
+  }
+
+  /* 分类色 */
+  .c-blue   { background: var(--blue); }
+  .c-green  { background: var(--green); }
+  .c-amber  { background: var(--amber); }
+  .c-rose   { background: var(--rose); }
+  .c-violet { background: var(--violet); }
+  .c-cyan   { background: var(--cyan); }
+
+  /* ── 架构分层 ───────────────────────────────────── */
+  .stack { display: flex; flex-direction: column; gap: 0; }
+  .layer {
+    border-radius: 12px;
+    padding: 14px 20px;
+    border: 1.5px solid;
+    display: flex; align-items: center; gap: 18px;
+  }
+  .layer .name {
+    font-weight: 700; font-size: 13.5px; flex: none; min-width: 132px;
+    font-family: Consolas, monospace;
+  }
+  .layer .desc { font-size: 12.5px; color: var(--ink-2); }
+  .layer .files {
+    margin-left: auto; font-size: 11px; color: var(--ink-3);
+    font-family: Consolas, monospace; flex: none;
+  }
+  .connector {
+    height: 26px; display: flex; align-items: center;
+    padding-left: 60px; color: var(--ink-3); font-size: 15px;
+  }
+  .connector small { font-size: 11px; margin-left: 10px; color: var(--ink-3); }
+
+  /* ── 数据模型 ───────────────────────────────────── */
+  .tbl {
+    border: 1.5px solid; border-radius: 12px; overflow: hidden;
+    background: #fff;
+  }
+  .tbl .h {
+    padding: 8px 14px; font-weight: 700; font-size: 12.5px;
+    font-family: Consolas, monospace;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tbl .h .rows { font-weight: 400; font-size: 10.5px; opacity: .75; }
+  .tbl .b {
+    padding: 9px 14px; font-size: 11.5px; color: var(--ink-2);
+    font-family: Consolas, monospace; line-height: 1.85;
+    border-top: 1px dashed var(--line);
+  }
+  .tbl .b .pk { color: var(--amber); font-weight: 700; }
+  .tbl .b .fk { color: var(--blue); font-weight: 700; }
+
+  .rel {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11.5px; color: var(--ink-3);
+    padding: 6px 0; gap: 6px;
+  }
+
+  /* ── 流程图 ─────────────────────────────────────── */
+  .flow {
+    display: flex; align-items: center; gap: 9px;
+    flex-wrap: wrap; margin: 0;
+  }
+  .flow.v { flex-direction: column; align-items: flex-start; }
+
+  .node {
+    padding: 8px 14px; border-radius: 10px;
+    font-size: 12px; font-weight: 600;
+    border: 1.5px solid; background: #fff;
+    white-space: nowrap;
+  }
+  .node small { display: block; font-weight: 400; font-size: 10.5px;
+                color: var(--ink-3); margin-top: 2px; white-space: normal; }
+
+  .n-blue   { border-color: #B9C9FB; background: var(--blue-soft);   color: #1E43A8; }
+  .n-green  { border-color: #A8DCC3; background: var(--green-soft);  color: #17663F; }
+  .n-amber  { border-color: #F0CE94; background: var(--amber-soft);  color: #8A5309; }
+  .n-rose   { border-color: #F2B7C0; background: var(--rose-soft);   color: #8E2734; }
+  .n-violet { border-color: #CDBCF2; background: var(--violet-soft); color: #4A3391; }
+  .n-cyan   { border-color: #A3D9E2; background: var(--cyan-soft);   color: #0B5C68; }
+  .n-grey   { border-color: var(--line); background: #F7F8FC; color: var(--ink-2); }
+
+  .arw { color: var(--ink-3); font-size: 15px; flex: none; }
+  .arw.down { transform: rotate(90deg); }
+
+  .branch {
+    border-left: 2px dashed var(--line);
+    padding-left: 18px; margin-left: 10px;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+
+  .label {
+    font-size: 11px; color: var(--ink-3);
+    background: #F2F3F8; padding: 2px 8px; border-radius: 6px;
+    flex: none;
+  }
+
+  .flow-block { margin-bottom: 22px; }
+  .flow-block:last-child { margin-bottom: 0; }
+  .flow-title {
+    font-size: 13px; font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .flow-title .badge {
+    font-size: 10.5px; font-weight: 600; padding: 1px 8px; border-radius: 6px;
+    background: #F2F3F8; color: var(--ink-2);
+  }
+
+  /* ── 开发循环 ───────────────────────────────────── */
+  .loop {
+    display: flex; align-items: stretch; gap: 0;
+    border: 1.5px solid var(--line); border-radius: 14px;
+    overflow: hidden; flex-wrap: wrap;
+  }
+  .loop .step {
+    flex: 1; min-width: 150px; padding: 15px 14px;
+    border-right: 1px solid var(--line);
+    background: #FCFCFE;
+  }
+  .loop .step:last-child { border-right: none; }
+  .loop .step .idx {
+    font-size: 10.5px; font-weight: 700; color: var(--blue);
+    background: var(--blue-soft); padding: 1px 7px; border-radius: 5px;
+    display: inline-block; margin-bottom: 7px;
+  }
+  .loop .step .t { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; }
+  .loop .step .d { font-size: 11.5px; color: var(--ink-3); }
+  .loop .step.hot { background: var(--amber-soft); }
+  .loop .step.hot .idx { color: var(--amber); background: #F7E4C6; }
+
+  /* ── 踩坑表 ─────────────────────────────────────── */
+  table.pit {
+    width: 100%; border-collapse: collapse; font-size: 12.5px;
+  }
+  table.pit th {
+    text-align: left; padding: 9px 12px; font-size: 11.5px;
+    color: var(--ink-3); font-weight: 600;
+    border-bottom: 1.5px solid var(--line);
+    background: #FAFBFD;
+  }
+  table.pit td {
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+    color: var(--ink-2); vertical-align: top;
+  }
+  table.pit tr:last-child td { border-bottom: none; }
+  table.pit td:first-child { color: var(--ink); font-weight: 600; }
+  table.pit code {
+    background: #F2F3F8; padding: 1px 6px; border-radius: 5px;
+    font-size: 11.5px; font-family: Consolas, monospace;
+    color: var(--ink);
+  }
+
+  .callout {
+    border-left: 3px solid var(--amber);
+    background: var(--amber-soft);
+    padding: 12px 16px; border-radius: 0 10px 10px 0;
+    font-size: 12.5px; color: #7A4A08;
+    margin-top: 16px;
+  }
+  .callout b { color: #5C3606; }
+
+  .footer {
+    text-align: center; color: var(--ink-3); font-size: 12px;
+    padding: 8px 0 0;
+  }
+
+  /* -- 项目历程时间线 -- */
+  .timeline { position: relative; padding-left: 32px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 10px; top: 12px; bottom: 12px;
+    width: 2px; border-radius: 1px;
+    background: linear-gradient(180deg,
+      #B9C9FB 0%, #CDBCF2 26%, #A8DCC3 50%, #F0CE94 74%, #F2B7C0 100%);
+  }
+  .tl { position: relative; margin-bottom: 26px; }
+  .tl:last-child { margin-bottom: 0; }
+  .tl::before {
+    content: ''; position: absolute; left: -27px; top: 7px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #fff; border: 2.5px solid var(--blue);
+    box-shadow: 0 0 0 3px rgba(59,110,246,.10);
+  }
+  .tl .hd { display: flex; align-items: center; gap: 9px;
+            margin-bottom: 8px; flex-wrap: wrap; }
+  .tl .hd .no {
+    font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+    background: var(--blue-soft); color: var(--blue);
+    font-family: Consolas, monospace; flex: none;
+  }
+  .tl .hd .t { font-size: 13.5px; font-weight: 700; }
+  .tl .hd .tag {
+    font-size: 10.5px; padding: 1px 8px; border-radius: 6px;
+    background: #F2F3F8; color: var(--ink-2); margin-left: auto;
+  }
+  .tl .bd { font-size: 12.5px; color: var(--ink-2); }
+  .tl .bd p { margin: 0 0 6px; }
+  .tl .bd ul { margin: 0; padding-left: 17px; }
+  .tl .bd li { margin-bottom: 3px; }
+  .tl .bd code {
+    background: #F2F3F8; padding: 0 5px; border-radius: 4px;
+    font-size: 11.5px; font-family: Consolas, monospace; color: var(--ink);
+  }
+  .tl .out, .tl .pit {
+    margin-top: 7px; font-size: 11.5px; padding: 7px 12px;
+    border-radius: 0 8px 8px 0; line-height: 1.6;
+  }
+  .tl .out { background: var(--green-soft); border-left: 3px solid var(--green);
+             color: #17663F; }
+  .tl .pit { background: var(--amber-soft); border-left: 3px solid var(--amber);
+             color: #7A4A08; }
+  .tl .out b, .tl .pit b { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══════════ 页头 ═══════════ -->
+  <div class="hero">
+    <h1>Lifelog · 项目蓝图</h1>
+    <p>本地优先的安卓个人信息管理 App &nbsp;·&nbsp; 随手收集 → AI 整理成日程 → 全天记录轨迹</p>
+    <div class="tags">
+      <span>无自建服务器</span>
+      <span>数据全部存手机本地</span>
+      <span>AI 走 DeepSeek</span>
+      <span>地图走高德</span>
+      <span>包名 com.simple.lifelog</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ 0. 项目历程 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">0</span>项目历程：从 0 到上线</h2>
+    <p class="sub">这次实际走过的每一步 —— 做了什么、产出什么、在哪儿卡住过</p>
+
+    <div class="timeline">
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 0</span>
+          <span class="t">环境搭建</span>
+          <span class="tag">起点：机器上什么都没有</span>
+        </div>
+        <div class="bd">
+          <p>起点很干净：只有 JDK 17，Flutter 和 Android SDK 都没装。</p><ul><li>Flutter 3.47.7 → <code>F:\dev\flutter</code>（1.93GB，走 storage.flutter-io.cn 镜像）</li><li>Android commandline-tools → <code>F:\dev\android-sdk</code></li><li>sdkmanager 装 platforms 35 / 36 / 37 + build-tools + platform-tools</li><li>Gradle 缓存也隔离到 F 盘 → <code>F:\dev\gradle-home</code>（不占 C 盘）</li><li>全套国内镜像：pub / flutter / Gradle 走腾讯云 / maven 走阿里云</li></ul>
+          <div class="out"><b>产出：</b>flutter doctor 全绿（只剩 Visual Studio 那项，做安卓用不到）</div>
+          <div class="pit"><b>踩坑：</b>Android SDK 37 官方包把 <code>ApiLevel</code> 写成了浮点数 <code>37.0</code>，AGP 解析不出整数、找不到目标。改成 <code>37</code> 才通。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 1</span>
+          <span class="t">项目地基</span>
+          <span class="tag">阶段 0</span>
+        </div>
+        <div class="bd">
+          <ul><li><code>flutter create</code> 生成项目，包名 <code>com.simple.lifelog</code>，只建 Android 平台</li><li>装依赖：Riverpod 3.4.3 / Drift 2.35.2 / go_router 18 / Dio 5 …</li><li>建 6 张表 + 索引，配好 Drift 迁移框架</li><li>四 Tab 外壳（各自保留导航栈）+ 设置页（DeepSeek Key 输入 + 连通性测试）</li></ul>
+          <div class="out"><b>产出：</b>App 装进手机能跑，四个 Tab 能切，设置页能测通 DeepSeek</div>
+          <div class="pit"><b>踩坑：</b><code>permission_handler</code> 13.x 要求 compileSdk 37，而 AGP 9.1.0 官方只支持到 36 —— 降级到 12.x 解决。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 2</span>
+          <span class="t">模块 1 · 收集箱</span>
+          <span class="tag">文字 / 图片 / 分享</span>
+        </div>
+        <div class="bd">
+          <ul><li>InboxDao + Repository + MediaStorage（图片落盘到应用私有目录）</li><li>列表页 + 「记一笔」页</li><li><code>receive_sharing_intent</code> 接收系统分享 —— <b>冷启动和热启动两条路径都要处理</b></li></ul>
+          <div class="out"><b>产出：</b>文字、图片、从微信分享进来的内容都能存住并落库</div>
+          <div class="pit"><b>踩坑：</b><code>riverpod_generator</code> 解析不了 Drift 生成的纯行类（抛 <code>InvalidTypeException</code>）→ 涉及 Drift 行类的 Provider 全部改成手写。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 3</span>
+          <span class="t">模块 2 · AI 整理</span>
+          <span class="tag">DeepSeek</span>
+        </div>
+        <div class="bd">
+          <ul><li>DeepSeekService：纯文本调用 + 多模态（图片转 base64）</li><li>prompt 设计：注入当前时间、要求 JSON 输出、要求提炼和拆分</li><li><b>两阶段流程</b>：先生成草案弹窗给用户确认，确认后才写日程表</li><li>用 <code>ai_runs</code> 表记录每次整理的原始返回，方便排查</li></ul>
+          <div class="out"><b>产出：</b>真机跑通 —— 模型返回的 JSON 被正确解析、写入 schedules 表、收集箱条目状态跟着流转</div>
+          <div class="pit"><b>踩坑：</b>模型返回可能带代码围栏、字段偶有缺失 → 解析器写成宽容模式，缺字段不崩。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 4</span>
+          <span class="t">需求迭代（三处改动）</span>
+          <span class="tag">数据库迁移 v1 → v2</span>
+        </div>
+        <div class="bd">
+          <p>第一版跑通后提了三件事，都动了数据库：</p><ul><li><b>条目变更历史</b> —— 像聊天记录一样，能看到每次改了什么（新增 <code>inbox_item_revisions</code> 表）</li><li><b>模型统一</b> —— 原来按有无图片切换模型，改成全部走 <code>deepseek-flash</code></li><li><b>条目级整理控制</b> —— 三个点菜单加「重新整理」和「不再整理」（新增 <code>organize_policy</code> 字段）</li></ul>
+          <div class="out"><b>产出：</b>迁移保住老数据；编辑已整理的条目会<b>自动退回待整理</b>（堵上「改了却永远不会被重新整理」的漏洞）</div>
+          <div class="pit"><b>踩坑：</b>写迁移时忘了给老数据补 <code>created</code> 历史记录，点进去历史是空的。在 <code>onUpgrade</code> 里补了一条 <code>INSERT ... SELECT</code>。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 5</span>
+          <span class="t">模块 3 · 日程表</span>
+          <span class="tag">周视图</span>
+        </div>
+        <div class="bd">
+          <ul><li>周视图：左侧时间轴固定、右侧 7 列横向滑动，表头与网格滚动同步</li><li>日程气泡<b>按真实时刻定位、按持续时长决定高度</b>，不是课表那种等高格子</li><li>时间重叠的日程用贪心算法并排摆开</li><li>双击气泡就地展开，露出这条日程来源的收集箱原文</li></ul>
+          <div class="out"><b>产出：</b>周视图正常渲染：今天高亮、当前时刻红线、双击展开来源都工作</div>
+          <div class="pit"><b>踩坑：</b><code>const []</code> 是只读列表，<code>sort()</code> 直接抛 <code>Unsupported operation</code> 崩掉整列。改成返回 <code>&lt;T&gt;[]</code>。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 6</span>
+          <span class="t">模块 4 · 定位轨迹</span>
+          <span class="tag">GPS + 保活</span>
+        </div>
+        <div class="bd">
+          <ul><li><b>坐标转换</b>：WGS84 → GCJ-02（实测偏移 570 米，不转轨迹就跑到隔壁街去了）</li><li>geolocator 采集 + 批量落库（攒 5 个点写一次）</li><li><b>前台服务保活</b>：<code>foregroundServiceType=location</code>，锁屏也能继续记录</li><li>三档精度可选（省电 50 米 / 平衡 15 米 / 高精度 10 米），设置页切换</li><li>后台定位权限（Android 11+ 必须单独申请）+ 保活自检页</li></ul>
+          <div class="out"><b>产出：</b>真机验证 —— 会话正常创建结算、坐标两套都存、<b>App 退后台 40 秒后进程和服务都还活着</b></div>
+          <div class="pit"><b>踩坑：</b>亲眼看到 App 一退后台就被系统限制、位置流断掉 —— 这正是必须上前台服务的原因。另外 <code>FlutterForegroundTask.init()</code> 返回 <code>void</code> 不是 <code>Future</code>，<code>await</code> 它会编译报错。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 7</span>
+          <span class="t">高德地图 + 计步</span>
+          <span class="tag">收尾</span>
+        </div>
+        <div class="bd">
+          <ul><li>申请高德 Android Key（绑定「包名 + 签名 SHA1」）</li><li><b>自封装 PlatformView</b>：约 300 行 Kotlin 包一层高德原生 SDK，只做「显示地图 / 画轨迹线 / 移动镜头」</li><li>计步：读硬件计步芯片（微信运动同源），处理「开机以来总数」的基线问题</li></ul>
+          <div class="out"><b>产出：</b>地图正常渲染、能识别所在位置；计步验证通过（隔夜补算逻辑实测正确）</div>
+          <div class="pit"><b>踩坑：</b>高德 SDK 8.1.0+ 必须先调 <code>updatePrivacyShow</code> + <code>updatePrivacyAgree</code>，否则地图只显示灰色网格<b>而且不报错</b>，极难排查。</div>
+        </div>
+      </div>
+
+      <div class="tl">
+        <div class="hd">
+          <span class="no">STEP 8</span>
+          <span class="t">优化与开源</span>
+          <span class="tag">准备上传</span>
+        </div>
+        <div class="bd">
+          <ul><li><b>敏感信息清理</b>：高德 Key 从硬编码改成从 <code>local.properties</code> 注入（该文件已 gitignore）</li><li>补齐 <code>.gitignore</code>：local.properties / key.properties / *.jks / *.keystore</li><li>补 README、架构文档、这份蓝图</li><li>排除体积：<code>build/</code> 2.4G、<code>.dart_tool/</code> 240M 都不进仓库</li></ul>
+          <div class="out"><b>产出：</b>复制后的项目 <code>pub get</code> + <code>analyze</code> 零问题；全项目扫描敏感信息 <b>0 命中</b></div>
+          <div class="pit"><b>踩坑：</b>换成正式签名后 SHA1 会变，高德 Key 需要重新申请一个。</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════ 1. 技术栈 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">1</span>技术栈全清单</h2>
+    <p class="sub">四个维度：跑在什么上、数据怎么存、用什么设备能力、依赖哪些外部服务</p>
+
+    <div class="grid g4" style="margin-bottom:14px">
+      <div class="card">
+        <h4><span class="dot c-blue"></span>框架与语言</h4>
+        <ul>
+          <li><b>Flutter</b><span class="v">3.47.7</span></li>
+          <li><b>Dart</b><span class="v">3.13.5</span></li>
+          <li><b>Kotlin</b><span class="v">2.4.0</span></li>
+          <li><b>Riverpod</b><span class="v">3.4.3</span></li>
+          <li><b>go_router</b><span class="v">18.0.2</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h4><span class="dot c-green"></span>数据与存储</h4>
+        <ul>
+          <li><b>Drift</b><span class="v">2.35.2</span></li>
+          <li><b>drift_flutter</b><span class="v">0.3.1</span></li>
+          <li><b>secure_storage</b><span class="v">11.2.0</span></li>
+          <li><b>Dio</b><span class="v">5.11.1</span></li>
+          <li><b>intl</b><span class="v">0.20.3</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h4><span class="dot c-amber"></span>设备能力</h4>
+        <ul>
+          <li><b>geolocator</b><span class="v">14.1.1</span></li>
+          <li><b>foreground_task</b><span class="v">11.0.3</span></li>
+          <li><b>pedometer</b><span class="v">4.2.0</span></li>
+          <li><b>permission_handler</b><span class="v">12.0.0</span></li>
+          <li><b>image_picker</b><span class="v">1.2.4</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h4><span class="dot c-violet"></span>外部服务</h4>
+        <ul>
+          <li><b>DeepSeek API</b><span class="v">flash</span></li>
+          <li><b>高德地图 SDK</b><span class="v">10.0.600</span></li>
+          <li><b>receive_sharing</b><span class="v">1.9.0</span></li>
+          <li><b>build_runner</b><span class="v">2.16.2</span></li>
+          <li><b>drift_dev</b><span class="v">2.35.1</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="grid g3">
+      <div class="card">
+        <h4><span class="dot c-cyan"></span>构建工具链</h4>
+        <ul>
+          <li><b>Android SDK</b><span class="v">35 / 36 / 37</span></li>
+          <li><b>AGP</b><span class="v">9.1.0</span></li>
+          <li><b>Gradle</b><span class="v">9.3.1</span></li>
+          <li><b>JDK</b><span class="v">17</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h4><span class="dot c-blue"></span>代码生成</h4>
+        <ul>
+          <li><b>Drift</b><span class="v">表 + DAO</span></li>
+          <li><b>Riverpod</b><span class="v">部分 Provider</span></li>
+          <li><b>json_serializable</b><span class="v">模型序列化</span></li>
+          <li><span style="color:var(--ink-3)">※ 涉及 Drift 行类的 Provider 手写</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h4><span class="dot c-rose"></span>Key 存放位置</h4>
+        <ul>
+          <li><b>DeepSeek</b><span class="v">加密存储</span></li>
+          <li><b>高德</b><span class="v">Manifest</span></li>
+          <li><span style="color:var(--ink-3)">DeepSeek Key 存 EncryptedSharedPreferences，不进数据库</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 2. 架构分层 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">2</span>架构分层</h2>
+    <p class="sub">数据从上往下流，两层之间有严格的规矩：UI 只跟 Provider 说话，业务规则一律写在 Repository</p>
+
+    <div class="stack">
+      <div class="layer" style="border-color:#B9C9FB;background:var(--blue-soft)">
+        <span class="name" style="color:#1E43A8">presentation</span>
+        <span class="desc">页面与组件，只负责画界面和接手势</span>
+        <span class="files">features/*/presentation/</span>
+      </div>
+
+      <div class="connector">↓<small>ref.watch / ref.read</small></div>
+
+      <div class="layer" style="border-color:#CDBCF2;background:var(--violet-soft)">
+        <span class="name" style="color:#4A3391">application</span>
+        <span class="desc">Provider / Notifier，状态编排与生命周期管理</span>
+        <span class="files">features/*/application/</span>
+      </div>
+
+      <div class="connector">↓<small>方法调用</small></div>
+
+      <div class="layer" style="border-color:#A8DCC3;background:var(--green-soft)">
+        <span class="name" style="color:#17663F">data</span>
+        <span class="desc">Repository —— 业务规则都在这层（例：改过的条目自动退回待整理）</span>
+        <span class="files">features/*/data/</span>
+      </div>
+
+      <div class="connector">↓<small>数据访问 / 外部调用</small></div>
+
+      <div class="layer" style="border-color:#F0CE94;background:var(--amber-soft)">
+        <span class="name" style="color:#8A5309">db &nbsp;+&nbsp; services</span>
+        <span class="desc">DAO 只管 SQL、不含业务；Service 封装外部依赖</span>
+        <span class="files">data/db/daos/ &nbsp; data/services/</span>
+      </div>
+
+      <div class="connector">↓</div>
+
+      <div class="layer" style="border-color:var(--line);background:#F7F8FC">
+        <span class="name" style="color:var(--ink-2)">平台层</span>
+        <span class="desc">SQLite &nbsp;│&nbsp; DeepSeek API &nbsp;│&nbsp; 高德 SDK &nbsp;│&nbsp; GPS / 计步传感器 &nbsp;│&nbsp; 前台服务</span>
+        <span class="files">Android</span>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b>两条硬规矩：</b>
+      ① 页面不直接碰 Repository，更不碰 DAO —— 全部通过 Provider；
+      ② 业务规则只写在 Repository 层，这样 UI 和 DAO 都不需要知道它。
+    </div>
+  </div>
+
+  <!-- ═══════════ 3. 数据模型 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">3</span>数据模型（schemaVersion = 3）</h2>
+    <p class="sub">八张表，全部在本地 SQLite；外键开启级联删除</p>
+
+    <div class="grid g3" style="margin-bottom:6px">
+      <div class="tbl" style="border-color:#B9C9FB">
+        <div class="h" style="background:var(--blue-soft);color:#1E43A8">
+          inbox_items <span class="rows">收集箱条目</span>
+        </div>
+        <div class="b">
+          <span class="pk">id</span>, type, content,<br>
+          image_path, status,<br>
+          organize_policy,<br>
+          created_at, updated_at
+        </div>
+      </div>
+
+      <div class="tbl" style="border-color:#A8DCC3">
+        <div class="h" style="background:var(--green-soft);color:#17663F">
+          inbox_item_revisions <span class="rows">变更历史</span>
+        </div>
+        <div class="b">
+          <span class="pk">id</span>, <span class="fk">item_id →</span>,<br>
+          kind (created/edited),<br>
+          content, recorded_at
+        </div>
+      </div>
+
+      <div class="tbl" style="border-color:#CDBCF2">
+        <div class="h" style="background:var(--violet-soft);color:#4A3391">
+          schedules <span class="rows">日程表</span>
+        </div>
+        <div class="b">
+          <span class="pk">id</span>, title, description,<br>
+          start_at, end_at, is_all_day,<br>
+          location, priority, status, origin,<br>
+          <span class="fk">ai_run_id →</span>, source_item_ids
+        </div>
+      </div>
+    </div>
+
+    <div class="rel">inbox_items &nbsp;1 ─── N&nbsp; inbox_item_revisions &nbsp;&nbsp;│&nbsp;&nbsp; schedules &nbsp;N ─── 1&nbsp; ai_runs &nbsp;&nbsp;│&nbsp;&nbsp; track_sessions &nbsp;1 ─── N&nbsp; track_points</div>
+
+    <div class="grid g3">
+      <div class="tbl" style="border-color:#A3D9E2">
+        <div class="h" style="background:var(--cyan-soft);color:#0B5C68">
+          ai_runs <span class="rows">AI 整理记录</span>
+        </div>
+        <div class="b">
+          <span class="pk">id</span>, status, model,<br>
+          input_item_ids, request_prompt,<br>
+          raw_response, created_count,<br>
+          error_message, started_at
+        </div>
+      </div>
+
+      <div class="tbl" style="border-color:#F0CE94">
+        <div class="h" style="background:var(--amber-soft);color:#8A5309">
+          track_sessions <span class="rows">轨迹会话</span>
+        </div>
+        <div class="b">
+          <span class="pk">id</span>, start_at, end_at,<br>
+          point_count, distance_m,<br>
+          status (recording/finished/<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;interrupted)
+        </div>
+      </div>
+
+      <div class="tbl" style="border-color:#F2B7C0">
+        <div class="h" style="background:var(--rose-soft);color:#8E2734">
+          track_points <span class="rows">轨迹点</span>
+        </div>
+        <div class="b">
+          <span class="pk">id</span>, <span class="fk">session_id →</span>,<br>
+          lat_wgs, lng_wgs, &nbsp;<i>← GPS 原始</i><br>
+          lat_gcj, lng_gcj, &nbsp;<i>← 高德用</i><br>
+          altitude, accuracy, speed
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b>三个关键设计：</b>
+      ① 轨迹点<b>同时存两套坐标</b>——WGS84 是真值（导出/换地图用），GCJ-02 给高德底图用，国内两者差 500+ 米；
+      ② <code>daily_steps</code> 存传感器原始值，因为芯片只报「开机以来总数」，重启会清零；
+      ③ <code>schedules.source_item_ids</code> 是 JSON 数组——一条日程可能来自多条笔记，一个条目也能拆出多条日程。
+    </div>
+  </div>
+
+  <!-- ═══════════ 4. 核心流程 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">4</span>四条核心流程</h2>
+    <p class="sub">每个模块从用户操作到数据落库的完整链路</p>
+
+    <!-- 收集箱 -->
+    <div class="flow-block">
+      <div class="flow-title">
+        <span class="dot c-blue"></span>① 收集箱 · 记一笔
+        <span class="badge">模块 1</span>
+      </div>
+      <div class="flow">
+        <span class="node n-blue">记一笔</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">文字？</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">图片？<small>复制进应用私有目录</small></span>
+        <span class="arw">→</span>
+        <span class="node n-green">写库 + 记 created 历史</span>
+        <span class="arw">→</span>
+        <span class="node n-blue">列表自动刷新</span>
+      </div>
+      <div class="branch" style="margin-top:10px">
+        <div class="flow">
+          <span class="label">另一入口</span>
+          <span class="node n-violet">系统分享菜单</span>
+          <span class="arw">→</span>
+          <span class="node n-grey">ShareIntentService<small>冷启动 + 热启动都要处理</small></span>
+          <span class="arw">→</span>
+          <span class="node n-green">落到同一个 Repository</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑回流 -->
+    <div class="flow-block">
+      <div class="flow-title">
+        <span class="dot c-green"></span>② 编辑条目 · 自动回流
+        <span class="badge">关键规则</span>
+      </div>
+      <div class="flow">
+        <span class="node n-green">改文字 / 换图 / 删图</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">内容真变了？<small>没变就返回，不写库</small></span>
+        <span class="arw">→</span>
+        <span class="node n-amber">写了 edited 历史</span>
+        <span class="arw">→</span>
+        <span class="node n-rose">原来是「已整理」？</span>
+        <span class="arw">→</span>
+        <span class="node n-rose" style="background:#FDD8DE;border-color:#E88E9C">退回「待整理」</span>
+      </div>
+      <div class="callout" style="margin-top:12px">
+        为什么必须回流：整理过 → 状态变 <code>processed</code> → 你改了内容 → <b>如果没有回流，这条再也不会被重新整理，改动等于白改</b>。
+      </div>
+    </div>
+
+    <!-- AI 整理 -->
+    <div class="flow-block">
+      <div class="flow-title">
+        <span class="dot c-cyan"></span>③ AI 整理 · 两阶段
+        <span class="badge">模块 2</span>
+        <span class="badge">刻意分开</span>
+      </div>
+
+      <div class="flow" style="margin-bottom:8px">
+        <span class="node n-cyan">取 pending 条目</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">写 ai_runs<small>running</small></span>
+        <span class="arw">→</span>
+        <span class="node n-violet">组装 prompt<small>注入当前时间<br>要求提炼 + 拆分</small></span>
+        <span class="arw">→</span>
+        <span class="node n-grey">有条目带图？<small>是 → base64 走视觉模型</small></span>
+        <span class="arw">→</span>
+        <span class="node n-cyan">调 DeepSeek<small>json 模式</small></span>
+        <span class="arw">→</span>
+        <span class="node n-green">解析出草案<small>ai_runs = success</small></span>
+      </div>
+
+      <div class="flow">
+        <span class="label">第二阶段</span>
+        <span class="node n-amber">底部弹窗预览<small>默认全选，可取消</small></span>
+        <span class="arw">→</span>
+        <span class="node n-green">点「写入日程」</span>
+        <span class="arw">→</span>
+        <span class="node n-green">批量插 schedules<small>带 ai_run_id + 溯源</small></span>
+        <span class="arw">→</span>
+        <span class="node n-blue">条目转 processed</span>
+      </div>
+
+      <div class="callout" style="margin-top:12px">
+        为什么分两阶段：<b>模型会抽风</b>。草案先给用户看，确认之前绝不写进日程表。
+      </div>
+    </div>
+
+    <!-- 轨迹 -->
+    <div class="flow-block">
+      <div class="flow-title">
+        <span class="dot c-amber"></span>④ 轨迹采集 · 全天记录
+        <span class="badge">模块 4</span>
+      </div>
+
+      <div class="flow" style="margin-bottom:8px">
+        <span class="node n-amber">开始记录</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">① 定位权限</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">② 后台定位<small>Android 11+ 单独申请</small></span>
+        <span class="arw">→</span>
+        <span class="node n-grey">③ 通知权限</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">④ 关电池优化</span>
+        <span class="arw">→</span>
+        <span class="node n-rose">启前台服务<small>type = location</small></span>
+      </div>
+
+      <div class="flow" style="margin-bottom:8px">
+        <span class="node n-blue">建会话 recording</span>
+        <span class="arw">→</span>
+        <span class="node n-cyan">订阅位置流<small>精度和间距由设置档位决定</small></span>
+        <span class="arw">→</span>
+        <span class="node n-violet">WGS84 → GCJ-02<small>两套坐标都存</small></span>
+        <span class="arw">→</span>
+        <span class="node n-green">攒 5 个点批量写库</span>
+      </div>
+
+      <div class="grid g3" style="margin-top:10px">
+        <div class="card" style="background:var(--green-soft);border-color:#A8DCC3">
+          <h4 style="color:#17663F"><span class="dot c-green"></span>省电档</h4>
+          <ul><li>GPS 精度 low</li><li>移动 <b>50 米</b>采一个点</li></ul>
+        </div>
+        <div class="card" style="background:var(--blue-soft);border-color:#B9C9FB">
+          <h4 style="color:#1E43A8"><span class="dot c-blue"></span>平衡档（默认）</h4>
+          <ul><li>GPS 精度 medium</li><li>移动 <b>15 米</b>采一个点</li></ul>
+        </div>
+        <div class="card" style="background:var(--rose-soft);border-color:#F2B7C0">
+          <h4 style="color:#8E2734"><span class="dot c-rose"></span>高精度档</h4>
+          <ul><li>GPS 精度 high</li><li>移动 <b>10 米</b>采一个点</li></ul>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top:14px">
+        <b>前台服务为什么是命门：</b>没有它，App 一退到后台就被系统限制，位置流直接断掉。
+        有了它 + <code>foregroundServiceType=location</code>，锁屏也能继续记录，
+        通知栏常驻显示「已记录 X 公里 · N 个点」。
+      </div>
+    </div>
+
+    <!-- 计步 -->
+    <div class="flow-block">
+      <div class="flow-title">
+        <span class="dot c-rose"></span>⑤ 计步 · 和轨迹完全独立
+        <span class="badge">模块 4 附加</span>
+      </div>
+      <div class="flow">
+        <span class="node n-rose">读硬件计步芯片</span>
+        <span class="arw">→</span>
+        <span class="node n-grey">今日步数<small>= 当前值 − 上次记录的值</small></span>
+        <span class="arw">→</span>
+        <span class="node n-green">距上次 &lt; 12h<small>用上次的值当基线，能补隔夜步数</small></span>
+      </div>
+      <div class="branch" style="margin-top:10px">
+        <div class="flow">
+          <span class="label">隔太久</span>
+          <span class="node n-amber">从 0 开始计<small>宁可少算，不虚高</small></span>
+        </div>
+        <div class="flow">
+          <span class="label">重启过</span>
+          <span class="node n-amber">传感器值倒退 → 重设基线</span>
+        </div>
+      </div>
+
+      <div class="grid g3" style="margin-top:16px">
+        <div class="card">
+          <h4><span class="dot c-rose"></span>计步</h4>
+          <ul>
+            <li>硬件：计步芯片（协处理器）</li>
+            <li>耗电：<b>&lt; 1%</b></li>
+            <li>需要前台服务：否</li>
+            <li>需要定位权限：否</li>
+            <li>数据：步数</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4><span class="dot c-amber"></span>轨迹</h4>
+          <ul>
+            <li>硬件：GPS 芯片</li>
+            <li>耗电：<b>5 ~ 15%</b></li>
+            <li>需要前台服务：是</li>
+            <li>需要定位权限：是</li>
+            <li>数据：经纬度序列</li>
+          </ul>
+        </div>
+        <div class="card" style="background:var(--violet-soft);border-color:#CDBCF2">
+          <h4 style="color:#4A3391"><span class="dot c-violet"></span>为什么微信运动省电</h4>
+          <ul>
+            <li>它<b>只用计步芯片</b>，从不碰 GPS</li>
+            <li>所以它只有步数，<b>没有轨迹</b></li>
+            <li>要轨迹就必须上 GPS，耗电躲不掉</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 5. 开发循环 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">5</span>开发循环</h2>
+    <p class="sub">每完成一个功能都要走这一圈，缺一步就等于没验证</p>
+
+    <div class="loop">
+      <div class="step">
+        <span class="idx">STEP 1</span>
+        <div class="t">写代码</div>
+        <div class="d">按分层放文件</div>
+      </div>
+      <div class="step">
+        <span class="idx">STEP 2</span>
+        <div class="t">flutter analyze</div>
+        <div class="d">目标：No issues found</div>
+      </div>
+      <div class="step">
+        <span class="idx">STEP 3</span>
+        <div class="t">build apk</div>
+        <div class="d">编译是否通过</div>
+      </div>
+      <div class="step">
+        <span class="idx">STEP 4</span>
+        <div class="t">adb install</div>
+        <div class="d">装到真机</div>
+      </div>
+      <div class="step">
+        <span class="idx">STEP 5</span>
+        <div class="t">看 logcat</div>
+        <div class="d">抓 FATAL / E/flutter</div>
+      </div>
+      <div class="step hot">
+        <span class="idx">STEP 6 ★</span>
+        <div class="t">查数据库</div>
+        <div class="d">直接 sqlite3 查表，确认数据真写对了</div>
+      </div>
+      <div class="step">
+        <span class="idx">STEP 7</span>
+        <div class="t">截图看 UI</div>
+        <div class="d">确认界面渲染正确</div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:16px">
+      <b>STEP 6 是最重要的一步。</b>光看界面不够 —— 界面显示正常但数据没落库的情况太常见了。
+      这次踩的「气泡文字没渲染」那个坑，就是因为只统计了像素、没确认元素是否真的可见，
+      结果追着一个不存在的 bug 改了两轮。
+    </div>
+  </div>
+
+  <!-- ═══════════ 6. 踩坑记录 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">6</span>踩过的坑（备查）</h2>
+    <p class="sub">换机器重装环境时，这些坑会原样再来一遍</p>
+
+    <table class="pit">
+      <thead>
+        <tr><th style="width:26%">坑</th><th style="width:30%">现象</th><th>解决</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Android SDK 37 元数据 bug</td>
+          <td>报找不到 <code>android-37</code></td>
+          <td>官方包把 <code>ApiLevel</code> 写成了浮点 <code>37.0</code>，改成整数 <code>37</code></td>
+        </tr>
+        <tr>
+          <td>AGP 不支持 compileSdk 37</td>
+          <td>构建直接中断</td>
+          <td><code>gradle.properties</code> 加 <code>android.suppressUnsupportedCompileSdk=37</code></td>
+        </tr>
+        <tr>
+          <td>riverpod_generator 解析不了 Drift 行类</td>
+          <td><code>InvalidTypeException</code></td>
+          <td>涉及 Drift 行类的 Provider 全部改手写</td>
+        </tr>
+        <tr>
+          <td><code>const []</code> 不可变</td>
+          <td><code>Unsupported operation</code> 崩溃</td>
+          <td>返回 <code>&lt;T&gt;[]</code> 而不是 <code>const []</code></td>
+        </tr>
+        <tr>
+          <td>高德 SDK 不显示地图</td>
+          <td>只有灰色网格，且不报错</td>
+          <td>必须先调 <code>updatePrivacyShow</code> + <code>updatePrivacyAgree</code></td>
+        </tr>
+        <tr>
+          <td>高德坐标偏移</td>
+          <td>轨迹整体偏 570 米</td>
+          <td>WGS84 → GCJ-02 转换</td>
+        </tr>
+        <tr>
+          <td>App 退后台轨迹断</td>
+          <td>位置流停止</td>
+          <td>前台服务 + <code>foregroundServiceType=location</code></td>
+        </tr>
+        <tr>
+          <td>验证方法本身出错</td>
+          <td>误判「文字没渲染」</td>
+          <td>先确认元素完整可见，再用像素统计做佐证</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════ 7. 已知限制 ═══════════ -->
+  <div class="section">
+    <h2><span class="num">7</span>已知限制</h2>
+    <p class="sub">第一版刻意没做的取舍</p>
+    <div class="grid g2">
+      <div class="card">
+        <h4><span class="dot c-amber"></span>计步在 App 未打开时不计</h4>
+        <ul>
+          <li>芯片只报「开机以来总数」，没有「今天从 0 开始」的概念</li>
+          <li>重新打开 App 时会自动补上这段</li>
+          <li><b>建议每天打开一次 App</b></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4><span class="dot c-amber"></span>AI 整理的 prompt 效果依赖模型</h4>
+        <ul>
+          <li>「提炼」和「拆分」两条指令模型不一定 100% 遵守</li>
+          <li>需要实际跑几次看效果，再调 prompt</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4><span class="dot c-amber"></span>轨迹会话不会自动跨天切分</h4>
+        <ul>
+          <li>目前一次「开始/停止」算一段</li>
+          <li>全天记录需要每天点一次</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4><span class="dot c-amber"></span>pedometer 插件用了旧式 Kotlin 配置</h4>
+        <ul>
+          <li>现在只是构建警告</li>
+          <li>未来 Flutter 版本会变成构建失败</li>
+          <li>届时需升级插件或自封装</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Lifelog · 项目蓝图 &nbsp;|&nbsp; 生成于 2026-10-10 &nbsp;|&nbsp; 完整文字版见 docs/ARCHITECTURE.md
+  </div>
+
+</div>
+</body>
+</html>

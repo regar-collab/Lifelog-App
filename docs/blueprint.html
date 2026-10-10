@@ -359,7 +359,7 @@
           <span class="tag">起点：机器上什么都没有</span>
         </div>
         <div class="bd">
-          <p>起点很干净：只有 JDK 17，Flutter 和 Android SDK 都没装。</p><ul><li>Flutter 3.47.7 → <code>F:\dev\flutter</code>（1.93GB，走 storage.flutter-io.cn 镜像）</li><li>Android commandline-tools → <code>F:\dev\android-sdk</code></li><li>sdkmanager 装 platforms 35 / 36 / 37 + build-tools + platform-tools</li><li>Gradle 缓存也隔离到 F 盘 → <code>F:\dev\gradle-home</code>（不占 C 盘）</li><li>全套国内镜像：pub / flutter / Gradle 走腾讯云 / maven 走阿里云</li></ul>
+          <p>起点很干净：只有 JDK 17，Flutter 和 Android SDK 都没装。</p><ul><li>Flutter 3.47.7 → <code><开发目录>\flutter</code>（1.93GB，走 storage.flutter-io.cn 镜像）</li><li>Android commandline-tools → <code><开发目录>\android-sdk</code></li><li>sdkmanager 装 platforms 35 / 36 / 37 + build-tools + platform-tools</li><li>Gradle 缓存也隔离到 开发盘 → <code><开发目录>\gradle-home</code>（不占 C 盘）</li><li>全套国内镜像：pub / flutter / Gradle 走腾讯云 / maven 走阿里云</li></ul>
           <div class="out"><b>产出：</b>flutter doctor 全绿（只剩 Visual Studio 那项，做安卓用不到）</div>
           <div class="pit"><b>踩坑：</b>Android SDK 37 官方包把 <code>ApiLevel</code> 写成了浮点数 <code>37.0</code>，AGP 解析不出整数、找不到目标。改成 <code>37</code> 才通。</div>
         </div>

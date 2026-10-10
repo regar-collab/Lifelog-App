@@ -52,7 +52,7 @@
 | Android SDK | platforms 35 / 36 / **37** | 37 是 `receive_sharing_intent` 要求的 |
 | AGP | 9.1.0 | 官方只声明支持到 compileSdk 36，37 需要 `suppressUnsupportedCompileSdk` |
 | Gradle | 9.3.1 | 走腾讯云镜像下载 |
-| JDK | 17 | 装在 `F:\JDK17` |
+| JDK | 17 | 装在 `<开发目录>\JDK17` |
 
 ---
 
@@ -359,10 +359,10 @@ App 启动
    ├─ 约束：纯安卓、无服务器、数据本地、AI 用 DeepSeek、地图用高德
    └─ 确认关键选型：图片直传 DeepSeek 视觉模型、地图自封装 PlatformView
 
-② 环境搭建（全部装在 F 盘）
-   ├─ Flutter 3.47.7 → F:\dev\flutter
-   ├─ Android SDK 35/36/37 → F:\dev\android-sdk
-   ├─ Gradle 缓存 → F:\dev\gradle-home
+② 环境搭建（全部装在 开发盘）
+   ├─ Flutter 3.47.7 → <开发目录>\flutter
+   ├─ Android SDK 35/36/37 → <开发目录>\android-sdk
+   ├─ Gradle 缓存 → <开发目录>\gradle-home
    └─ 配国内镜像（pub / flutter / gradle / maven）
 
 ③ 阶段 0：地基

@@ -12,7 +12,9 @@ import 'package:lifelog/features/settings/application/app_settings_providers.dar
 import 'package:lifelog/features/track/application/track_foreground_service.dart';
 import 'package:lifelog/features/track/application/track_providers.dart';
 import 'package:lifelog/features/track/data/track_repository.dart';
-import 'package:permission_handler/permission_handler.dart';
+// permission_handler 也导出了一个同名 ServiceStatus，和 geolocator 的冲突，
+// 这里只要它的 Permission 相关 API。
+import 'package:permission_handler/permission_handler.dart' hide ServiceStatus;
 
 /// 采集器的对外状态。
 class TrackRecorderState {
@@ -77,7 +79,9 @@ class TrackRecorderState {
 /// 精度档位由设置页决定（省电 / 平衡 / 高精度），因为它直接决定耗电量。
 class TrackRecorder extends Notifier<TrackRecorderState> {
   StreamSubscription<Position>? _subscription;
+  StreamSubscription<ServiceStatus>? _serviceStatusSub;
   Timer? _flushTimer;
+  Future<void>? _recovery;
 
   final List<TrackPointsCompanion> _buffer = [];
 
@@ -87,6 +91,8 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
   @override
   TrackRecorderState build() {
     ref.onDispose(_cleanup);
+    // 上一次进程可能是被系统杀掉的，先把残留的 recording 会话收尾
+    _recovery = _recoverInterruptedSessions();
     return const TrackRecorderState();
   }
 
@@ -95,8 +101,15 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
   /// 开始记录。
   Future<void> start() async {
     if (state.recording || state.starting) return;
-    state = state.copyWith(starting: true, clearError: true, clearWarning: true);
+    // 等启动恢复完成，避免和残留会话的收尾逻辑打架
+    await (_recovery ?? Future<void>.value());
+    state = state.copyWith(
+      starting: true,
+      clearError: true,
+      clearWarning: true,
+    );
 
+    int? createdSessionId;
     try {
       final String? problem = await _ensureLocationPermission();
       if (problem != null) {
@@ -131,12 +144,13 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
         return;
       }
 
-      final TrackAccuracyLevel level =
-          await _resolveAccuracyLevel();
+      final TrackAccuracyLevel level = await _resolveAccuracyLevel();
 
       final DateTime now = DateTime.now();
-      final TrackSession session =
-          await _repo.startSessionAndReturn(now.millisecondsSinceEpoch);
+      final TrackSession session = await _repo.startSessionAndReturn(
+        now.millisecondsSinceEpoch,
+      );
+      createdSessionId = session.id;
 
       _subscription = Geolocator.getPositionStream(
         locationSettings: LocationSettings(
@@ -145,6 +159,12 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
           distanceFilter: _distanceFilterFor(level),
         ),
       ).listen(_onPosition, onError: _onStreamError);
+
+      // 有些机型关掉 GPS 后流只是静默停止，不会触发 onError；
+      // 监听系统定位开关，至少能及时停止会话、别让通知继续骗人。
+      _serviceStatusSub = Geolocator.getServiceStatusStream().listen(
+        _onServiceStatusChanged,
+      );
 
       _flushTimer = Timer.periodic(
         const Duration(seconds: 30),
@@ -159,34 +179,47 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
         warning: backgroundWarning,
       );
 
-      await TrackForegroundService.updateText(
-        '正在记录 · ${level.label}档',
-      );
+      await TrackForegroundService.updateText('正在记录 · ${level.label}档');
     } catch (e) {
-      state = state.copyWith(starting: false, error: '启动失败：$e');
+      await _rollbackStart(createdSessionId);
+      state = TrackRecorderState(error: '启动失败：$e');
     }
   }
 
   /// 停止记录并收尾：落掉缓冲、结束会话、结算里程、关掉前台服务。
+  ///
+  /// 即使 sessionId 为空也要停服务 —— 启动到一半失败时服务可能已经起来了。
   Future<void> stop({String status = 'finished'}) async {
     final int? sessionId = state.sessionId;
-    if (sessionId == null) return;
 
     await _subscription?.cancel();
     _subscription = null;
+    _serviceStatusSub?.cancel();
+    _serviceStatusSub = null;
     _flushTimer?.cancel();
     _flushTimer = null;
 
-    await _flush();
-    await _repo.finishSession(
-      sessionId,
-      at: DateTime.now().millisecondsSinceEpoch,
-      status: status,
-    );
+    String? failure;
+    try {
+      await _flush();
+      if (sessionId != null) {
+        await _repo.finishSession(
+          sessionId,
+          at: DateTime.now().millisecondsSinceEpoch,
+          status: status,
+        );
+      }
+    } catch (e) {
+      failure = '停止记录时收尾失败：$e';
+    }
 
-    await TrackForegroundService.stop();
+    try {
+      await TrackForegroundService.stop();
+    } catch (e) {
+      failure ??= '关闭前台服务失败：$e';
+    }
 
-    state = const TrackRecorderState();
+    state = TrackRecorderState(error: failure);
   }
 
   Future<void> _flush() async {
@@ -195,21 +228,28 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
     final List<TrackPointsCompanion> batch = List.of(_buffer);
     _buffer.clear();
 
+    // 只把「写点」放进需要回滚的范围。写成功之后的统计/通知失败
+    // 不能把这一批重新塞回缓冲区，否则会重复插入同一批轨迹点。
     try {
       await _repo.insertPoints(batch);
-      state = state.copyWith(bufferedCount: 0);
+    } catch (e) {
+      _buffer.insertAll(0, batch);
+      state = state.copyWith(error: '写入失败：$e');
+      return;
+    }
 
-      final int? sessionId = state.sessionId;
-      if (sessionId != null) {
+    state = state.copyWith(bufferedCount: 0);
+
+    final int? sessionId = state.sessionId;
+    if (sessionId != null) {
+      try {
         final TrackSummary summary = await _repo.summarise(sessionId);
         await TrackForegroundService.updateText(
           '已记录 ${summary.distanceKm} 公里 · ${summary.pointCount} 个点',
         );
+      } catch (_) {
+        // 统计和通知失败不影响已经落库的轨迹
       }
-    } catch (e) {
-      // 写失败就把点放回去，下一轮再试，别丢数据
-      _buffer.insertAll(0, batch);
-      state = state.copyWith(error: '写入失败：$e');
     }
   }
 
@@ -251,7 +291,70 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
   }
 
   void _onStreamError(Object error) {
-    state = state.copyWith(error: '定位中断：$error');
+    if (!state.recording) {
+      state = state.copyWith(error: '定位中断：$error');
+      return;
+    }
+    // 流已经断了，继续显示“记录中”只会骗用户；主动收尾成 interrupted
+    unawaited(_stopAfterLocationError('定位中断：$error'));
+  }
+
+  void _onServiceStatusChanged(ServiceStatus status) {
+    if (status == ServiceStatus.disabled && state.recording) {
+      unawaited(_stopAfterLocationError('系统定位服务已关闭'));
+    }
+  }
+
+  Future<void> _stopAfterLocationError(String message) async {
+    await stop(status: 'interrupted');
+    state = state.copyWith(error: '$message，记录已自动停止');
+  }
+
+  /// 启动中途失败时的统一回滚：取消订阅、落盘已有数据、结束会话、停服务。
+  Future<void> _rollbackStart(int? sessionId) async {
+    await _subscription?.cancel();
+    _subscription = null;
+    _serviceStatusSub?.cancel();
+    _serviceStatusSub = null;
+    _flushTimer?.cancel();
+    _flushTimer = null;
+
+    try {
+      await _flush();
+    } catch (_) {
+      _buffer.clear();
+    }
+
+    if (sessionId != null) {
+      try {
+        await _repo.finishSession(
+          sessionId,
+          at: DateTime.now().millisecondsSinceEpoch,
+          status: 'interrupted',
+        );
+      } catch (_) {
+        // 会话收尾失败会在下次启动的恢复流程里再处理
+      }
+    }
+
+    try {
+      await TrackForegroundService.stop();
+    } catch (_) {
+      // 服务本来就可能没起来
+    }
+  }
+
+  /// 启动时收尾上次异常退出留下的会话。
+  Future<void> _recoverInterruptedSessions() async {
+    try {
+      final int count = await _repo.recoverInterruptedSessions();
+      if (count > 0) {
+        // 主 isolate 的定位流早已随进程消失，服务还在跑就是空转
+        await TrackForegroundService.stop();
+      }
+    } catch (_) {
+      // 恢复失败不阻塞 App 启动，下次启动再试
+    }
   }
 
   // ── 精度档位 ──────────────────────────────────────────────
@@ -327,6 +430,7 @@ class TrackRecorder extends Notifier<TrackRecorderState> {
 
   void _cleanup() {
     _subscription?.cancel();
+    _serviceStatusSub?.cancel();
     _flushTimer?.cancel();
   }
 }

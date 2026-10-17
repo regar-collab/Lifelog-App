@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lifelog/core/router/home_shell.dart';
 import 'package:lifelog/core/utils/coordinate.dart';
 import 'package:lifelog/core/utils/date_utils.dart';
 import 'package:lifelog/data/services/native_config.dart';
@@ -12,6 +13,7 @@ import 'package:lifelog/features/settings/application/settings_providers.dart';
 import 'package:lifelog/features/steps/application/step_tracker.dart';
 import 'package:lifelog/features/track/data/track_repository.dart';
 import 'package:lifelog/features/track/presentation/widgets/amap_view.dart';
+import 'package:lifelog/features/track/presentation/widgets/track_session_detail_sheet.dart';
 
 /// 模块 4 定位轨迹。
 ///
@@ -26,8 +28,9 @@ class TrackPage extends ConsumerWidget {
 
     final TrackRecorderState recorder = ref.watch(trackRecorderProvider);
     final AsyncValue<TrackSummary> todayAsync = ref.watch(todaySummaryProvider);
-    final AsyncValue<List<TrackSession>> sessionsAsync =
-        ref.watch(trackSessionsProvider);
+    final AsyncValue<List<TrackSession>> sessionsAsync = ref.watch(
+      trackSessionsProvider,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -54,7 +57,7 @@ class TrackPage extends ConsumerWidget {
           const SizedBox(height: 14),
           _buildControlCard(context, ref, theme, recorder),
           const SizedBox(height: 14),
-          _buildMap(ref, theme),
+          _buildMap(context, ref, theme),
           const SizedBox(height: 26),
           Text(
             '历史记录',
@@ -65,34 +68,49 @@ class TrackPage extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           switch (sessionsAsync) {
-            AsyncData(:final List<TrackSession> value) => value.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 28),
-                    child: Text(
-                      '还没有记录过轨迹',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.outline),
-                    ),
-                  )
-                : Card(
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < value.length; i++) ...[
-                          if (i > 0) const Divider(height: 1, indent: 16),
-                          _SessionTile(session: value[i]),
+            AsyncData(:final List<TrackSession> value) =>
+              value.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 28),
+                      child: Text(
+                        '还没有记录过轨迹',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    )
+                  : Card(
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < value.length; i++) ...[
+                            if (i > 0) const Divider(height: 1, indent: 16),
+                            _SessionTile(
+                              session: value[i],
+                              onTap: () =>
+                                  _showSessionDetails(context, value[i]),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
             AsyncError(:final Object error) => Text('读取失败：$error'),
             _ => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
           },
         ],
       ),
+    );
+  }
+
+  void _showSessionDetails(BuildContext context, TrackSession session) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => TrackSessionDetailSheet(session: session),
     );
   }
 
@@ -110,7 +128,11 @@ class TrackPage extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.timeline, color: theme.colorScheme.primary, size: 20),
+                Icon(
+                  Icons.timeline,
+                  color: theme.colorScheme.primary,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text('今天', style: theme.textTheme.titleMedium),
               ],
@@ -127,9 +149,7 @@ class TrackPage extends ConsumerWidget {
                 ),
                 Expanded(
                   child: _Stat(
-                    value: summary == null
-                        ? '—'
-                        : '${summary.durationMinutes}',
+                    value: summary == null ? '—' : '${summary.durationMinutes}',
                     unit: '分钟',
                     label: '时长',
                   ),
@@ -158,8 +178,9 @@ class TrackPage extends ConsumerWidget {
     final bool recording = recorder.recording;
 
     // 文案跟着当前精度档位走 —— 采样间距是随档位变的，不能写死
-    final AsyncValue<TrackAccuracyLevel> accuracyAsync =
-        ref.watch(trackAccuracyProvider);
+    final AsyncValue<TrackAccuracyLevel> accuracyAsync = ref.watch(
+      trackAccuracyProvider,
+    );
     final TrackAccuracyLevel level = switch (accuracyAsync) {
       AsyncData(:final TrackAccuracyLevel value) => value,
       _ => TrackAccuracyLevel.balanced,
@@ -180,14 +201,19 @@ class TrackPage extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.5),
+                  color: theme.colorScheme.errorContainer.withValues(
+                    alpha: 0.5,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.error_outline,
-                        size: 18, color: theme.colorScheme.error),
+                    Icon(
+                      Icons.error_outline,
+                      size: 18,
+                      color: theme.colorScheme.error,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -214,14 +240,16 @@ class TrackPage extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Text(
                     '正在记录',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(color: theme.colorScheme.error),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
                   const Spacer(),
                   Text(
                     '已采集 ${recorder.bufferedCount} 个待写入',
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.outline),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ],
               ),
@@ -230,8 +258,9 @@ class TrackPage extends ConsumerWidget {
                 Text(
                   '最近位置：${recorder.lastLat!.toStringAsFixed(5)}, '
                   '${recorder.lastLng!.toStringAsFixed(5)}',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: theme.colorScheme.outline),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
                 ),
               ],
               const SizedBox(height: 16),
@@ -240,8 +269,9 @@ class TrackPage extends ConsumerWidget {
               onPressed: recorder.starting
                   ? null
                   : () async {
-                      final TrackRecorder notifier =
-                          ref.read(trackRecorderProvider.notifier);
+                      final TrackRecorder notifier = ref.read(
+                        trackRecorderProvider.notifier,
+                      );
                       if (recording) {
                         await notifier.stop();
                       } else {
@@ -250,9 +280,7 @@ class TrackPage extends ConsumerWidget {
                     },
               icon: Icon(recording ? Icons.stop : Icons.play_arrow_rounded),
               label: Text(
-                recorder.starting
-                    ? '启动中…'
-                    : (recording ? '停止记录' : '开始记录'),
+                recorder.starting ? '启动中…' : (recording ? '停止记录' : '开始记录'),
               ),
               style: recording
                   ? FilledButton.styleFrom(
@@ -264,12 +292,13 @@ class TrackPage extends ConsumerWidget {
             Text(
               recording
                   ? '前台服务已启动，锁屏和切到后台都会继续记录。'
-                      '如果轨迹还是断，请到系统设置里给 Lifelog 打开「自启动」'
-                      '和「后台高耗电允许」。'
+                        '如果轨迹还是断，请到系统设置里给 Lifelog 打开「自启动」'
+                        '和「后台高耗电允许」。'
                   : '当前「${level.label}」档：移动约 $intervalM 米采集一个点，'
-                      '静止时不耗电。想更细腻或更省电，去设置页切档位。',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.outline),
+                        '静止时不耗电。想更细腻或更省电，去设置页切档位。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
           ],
         ),
@@ -292,8 +321,11 @@ class TrackPage extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.directions_walk,
-                    color: theme.colorScheme.primary, size: 22),
+                Icon(
+                  Icons.directions_walk,
+                  color: theme.colorScheme.primary,
+                  size: 22,
+                ),
                 const SizedBox(width: 10),
                 Text('今日步数', style: theme.textTheme.titleMedium),
                 const Spacer(),
@@ -309,8 +341,9 @@ class TrackPage extends ConsumerWidget {
                       ),
                       TextSpan(
                         text: ' 步',
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: theme.colorScheme.outline),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
@@ -321,15 +354,17 @@ class TrackPage extends ConsumerWidget {
               const SizedBox(height: 10),
               Text(
                 steps.error!,
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: theme.colorScheme.error),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               ),
             ] else if (!steps.available) ...[
               const SizedBox(height: 6),
               Text(
                 '正在读取计步传感器…',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: theme.colorScheme.outline),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ] else ...[
               const SizedBox(height: 6),
@@ -350,9 +385,16 @@ class TrackPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildMap(WidgetRef ref, ThemeData theme) {
-    final AsyncValue<List<LatLng>> pointsAsync =
-        ref.watch(trackMapPointsProvider);
+  Widget _buildMap(BuildContext context, WidgetRef ref, ThemeData theme) {
+    // StatefulShellRoute 会保留所有 Tab 的页面。高德 MapView 很重
+    // （实测常驻时约占 170MB EGL 显存），不在轨迹 Tab 时就不要创建它。
+    if (ActiveTabScope.of(context) != 4) {
+      return const SizedBox(height: 320);
+    }
+
+    final AsyncValue<List<LatLng>> pointsAsync = ref.watch(
+      trackMapPointsProvider,
+    );
     final AsyncValue<String?> keyAsync = ref.watch(amapApiKeyProvider);
 
     final List<LatLng> points = switch (pointsAsync) {
@@ -391,8 +433,11 @@ class TrackPage extends ConsumerWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.key_outlined,
-                          size: 30, color: theme.colorScheme.outline),
+                      Icon(
+                        Icons.key_outlined,
+                        size: 30,
+                        color: theme.colorScheme.outline,
+                      ),
                       const SizedBox(height: 10),
                       Text('还没配置高德 Key', style: theme.textTheme.titleSmall),
                       const SizedBox(height: 6),
@@ -400,8 +445,9 @@ class TrackPage extends ConsumerWidget {
                         '轨迹要画在高德地图上，需要你自己的 Key。\n'
                         '去设置页填一下就能用了。',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: theme.colorScheme.outline),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
@@ -409,19 +455,26 @@ class TrackPage extends ConsumerWidget {
               )
             else if (points.isEmpty)
               Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  color: theme.colorScheme.surface.withValues(alpha: 0.92),
-                  child: Text(
-                    '还没有轨迹点。点「开始记录」带着手机走一段，轨迹就会画在这里。',
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.outline),
+                left: 12,
+                // 右侧留出高德自带缩放控件的位置，否则会盖住「−」
+                right: 76,
+                bottom: 12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '还没有轨迹点。点「开始记录」带着手机走一段，轨迹就会画在这里。',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -430,16 +483,10 @@ class TrackPage extends ConsumerWidget {
       ),
     );
   }
-
 }
 
-
 class _Stat extends StatelessWidget {
-  const _Stat({
-    required this.value,
-    required this.unit,
-    required this.label,
-  });
+  const _Stat({required this.value, required this.unit, required this.label});
 
   final String value;
   final String unit;
@@ -463,8 +510,9 @@ class _Stat extends StatelessWidget {
               ),
               TextSpan(
                 text: ' $unit',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: theme.colorScheme.outline),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ],
           ),
@@ -472,8 +520,9 @@ class _Stat extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: theme.colorScheme.outline),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
         ),
       ],
     );
@@ -481,9 +530,10 @@ class _Stat extends StatelessWidget {
 }
 
 class _SessionTile extends StatelessWidget {
-  const _SessionTile({required this.session});
+  const _SessionTile({required this.session, this.onTap});
 
   final TrackSession session;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -492,6 +542,7 @@ class _SessionTile extends StatelessWidget {
 
     return ListTile(
       dense: true,
+      onTap: onTap,
       leading: Icon(
         interrupted ? Icons.warning_amber_outlined : Icons.route_outlined,
         size: 20,
@@ -504,8 +555,9 @@ class _SessionTile extends StatelessWidget {
         '${(session.distanceM / 1000).toStringAsFixed(2)} 公里 · '
         '${session.pointCount} 个点'
         '${interrupted ? ' · 被系统中断' : ''}',
-        style: theme.textTheme.labelSmall
-            ?.copyWith(color: theme.colorScheme.outline),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.outline,
+        ),
       ),
     );
   }

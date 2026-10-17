@@ -11,8 +11,8 @@ import 'package:lifelog/features/inbox/application/inbox_providers.dart';
 
 /// 记一笔 / 编辑条目。
 ///
-/// 新建时可以「文字 + 若干图片」一起存：每张图片单独成条，备注填文字框内容。
-/// 编辑时文字和图片都能改 —— 一条最多一张图，换图会替换掉旧的。
+/// 新建时可以「文字 + 多张图片」一起存成同一条记录，备注填文字框内容。
+/// 编辑时可以继续加图、单独移除某张图，文字和图片都能改。
 class InboxComposePage extends ConsumerStatefulWidget {
   const InboxComposePage({super.key, this.itemId});
 
@@ -26,14 +26,11 @@ class _InboxComposePageState extends ConsumerState<InboxComposePage> {
   final TextEditingController _controller = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
-  /// 新建模式下已选、还没落盘的图片
+  /// 已选、还没落盘的图片。新建和编辑模式都用它。
   final List<File> _picked = [];
 
-  /// 编辑模式下新选的图（还没保存）
-  File? _newImage;
-
-  /// 编辑模式下是否要删掉原有的图
-  bool _removeImage = false;
+  /// 编辑模式下标记要删除的旧图路径（保存后才真正删文件）。
+  final Set<String> _removedPaths = <String>{};
 
   InboxItem? _editing;
   bool _loading = false;
@@ -57,8 +54,9 @@ class _InboxComposePageState extends ConsumerState<InboxComposePage> {
 
   Future<void> _loadExisting() async {
     setState(() => _loading = true);
-    final InboxItem? item =
-        await ref.read(inboxRepositoryProvider).findById(widget.itemId!);
+    final InboxItem? item = await ref
+        .read(inboxRepositoryProvider)
+        .findById(widget.itemId!);
     if (!mounted) return;
     setState(() {
       _editing = item;
@@ -67,21 +65,9 @@ class _InboxComposePageState extends ConsumerState<InboxComposePage> {
     });
   }
 
-  /// 新建模式：多选。编辑模式：单选（一条只有一张图，换就是替换）。
+  /// 新建和编辑都支持一次选多张图。
   Future<void> _pickImages() async {
     try {
-      if (_isEditMode) {
-        final XFile? file = await _picker.pickImage(
-          source: ImageSource.gallery,
-        );
-        if (file == null || !mounted) return;
-        setState(() {
-          _newImage = File(file.path);
-          _removeImage = false;
-        });
-        return;
-      }
-
       final List<XFile> files = await _picker.pickMultiImage();
       if (files.isEmpty || !mounted) return;
       setState(() {
@@ -89,13 +75,13 @@ class _InboxComposePageState extends ConsumerState<InboxComposePage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('选图失败：$e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('选图失败：$e')));
     }
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     final String text = _controller.text.trim();
     final repo = ref.read(inboxRepositoryProvider);
@@ -105,52 +91,66 @@ class _InboxComposePageState extends ConsumerState<InboxComposePage> {
       if (item == null) return;
 
       setState(() => _saving = true);
-      // 已整理过的条目改了内容，会自动退回待整理（否则改动永远不会被重新整理）
-      final bool needReorganize = await repo.updateItem(
-        item,
-        content: text,
-        newImage: _newImage,
-        removeImage: _removeImage,
-      );
-
-      if (!mounted) return;
-      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-      context.pop();
-
-      if (needReorganize) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('内容已修改，这条已退回「待整理」，下次整理会重新处理'),
-            duration: Duration(seconds: 4),
-          ),
+      try {
+        // 已整理过的条目改了内容，会自动退回待整理（否则改动永远不会被重新整理）
+        final bool needReorganize = await repo.updateItem(
+          item,
+          content: text,
+          newImages: _picked,
+          removeImagePaths: _removedPaths.toList(),
         );
+
+        if (!mounted) return;
+        final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+        context.pop();
+
+        if (needReorganize) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('内容已修改，这条已退回「待整理」，下次整理会重新处理'),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('保存失败：${_friendlyError(e)}')));
       }
       return;
     }
 
     if (_picked.isEmpty && text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('写点什么，或者选张图')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('写点什么，或者选张图')));
       return;
     }
 
     setState(() => _saving = true);
-    if (_picked.isEmpty) {
-      await repo.addText(text);
-    } else {
-      for (final File file in _picked) {
-        await repo.addImage(file, note: text.isEmpty ? null : text);
+    try {
+      if (_picked.isEmpty) {
+        await repo.addText(text);
+      } else {
+        // 多张图作为同一条记录保存
+        await repo.addImages(_picked, note: text.isEmpty ? null : text);
       }
+      if (!mounted) return;
+      context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('保存失败：${_friendlyError(e)}')));
     }
-    if (!mounted) return;
-    context.pop();
   }
 
-  /// 编辑模式下当前是否该显示图片（新选的图，或原有的图且没标记删除）
-  bool get _showsExistingImage =>
-      _newImage != null ||
-      (_editing?.imagePath != null && !_removeImage);
+  String _friendlyError(Object error) {
+    if (error is FileSystemException) {
+      return '文件读写失败（${error.osError?.message ?? error.message}）';
+    }
+    return error.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +199,7 @@ class _InboxComposePageState extends ConsumerState<InboxComposePage> {
     );
   }
 
-  // ── 新建：可以一次选多张，每张单独成条 ────────────────────
+  // ── 新建：一次可以选多张，全部存成同一条记录 ──────────────
 
   List<Widget> _buildCreateImageSection(ThemeData theme) {
     return [
@@ -225,138 +225,106 @@ class _InboxComposePageState extends ConsumerState<InboxComposePage> {
       ),
       const SizedBox(height: 12),
       Text(
-        '图片会复制到 App 私有目录，数据库里只存路径。'
+        '多张图片会作为同一条记录保存。图片复制到 App 私有目录，'
         '写点文字当备注，之后 AI 整理会更好理解上下文。',
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.outline),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.outline,
+        ),
       ),
     ];
   }
 
-  // ── 编辑：一条只有一张图，换就是替换 ──────────────────────
+  // ── 编辑：可以继续加图，也可以单独移除某张图 ──────────────
 
   List<Widget> _buildEditImageSection(ThemeData theme) {
-    final String? oldPath = _editing?.imagePath;
-    final String? oldAbsolute =
-        oldPath == null ? null : MediaStorage.resolveSync(oldPath);
+    final List<String> existing = MediaStorage.parsePaths(_editing?.imagePath)
+        .where((String path) => !_removedPaths.contains(path))
+        .toList();
+    final int total = existing.length + _picked.length;
 
     return [
-      if (_showsExistingImage) ...[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_newImage != null)
-              _PreviewBox(
-                child: Image.file(
-                  _newImage!,
-                  width: 110,
-                  height: 110,
-                  fit: BoxFit.cover,
-                  cacheWidth: 330,
-                ),
-              )
-            else if (oldAbsolute != null)
-              _PreviewBox(
-                child: Image.file(
-                  File(oldAbsolute),
-                  width: 110,
-                  height: 110,
-                  fit: BoxFit.cover,
-                  cacheWidth: 330,
-                  errorBuilder: (_, _, _) => const SizedBox(
-                    width: 110,
-                    height: 110,
+      if (total > 0) ...[
+        SizedBox(
+          height: 96,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: total,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (BuildContext context, int i) {
+              if (i < existing.length) {
+                final String path = existing[i];
+                final String? absolute = MediaStorage.resolveSync(path);
+                if (absolute == null) {
+                  return const SizedBox(
+                    width: 96,
+                    height: 96,
                     child: Icon(Icons.broken_image_outlined),
-                  ),
-                ),
-              ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _newImage != null ? '保存后替换原图' : '当前图片',
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.outline),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '一条记录只带一张图。选新图会替换掉旧的，旧文件会一并删除。',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                  );
+                }
+                return _PickedThumb(
+                  file: File(absolute),
+                  onRemove: () => setState(() => _removedPaths.add(path)),
+                );
+              }
+
+              final File file = _picked[i - existing.length];
+              return _PickedThumb(
+                file: file,
+                onRemove: () =>
+                    setState(() => _picked.removeAt(i - existing.length)),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '共 $total 张图片。点右上角 × 可移除，保存后才会真正删除。',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
         ),
         const SizedBox(height: 14),
       ],
-      Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _pickImages,
-              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
-              label: Text(_showsExistingImage ? '换一张图' : '添加图片'),
-            ),
-          ),
-          if (_showsExistingImage) ...[
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => setState(() {
-                  _newImage = null;
-                  _removeImage = true;
-                }),
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('删除图片'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.colorScheme.error,
-                ),
-              ),
-            ),
-          ],
-        ],
+      OutlinedButton.icon(
+        onPressed: _pickImages,
+        icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+        label: Text(total == 0 ? '添加图片' : '继续添加图片'),
       ),
-      if (_removeImage && _newImage == null) ...[
+      if (_removedPaths.isNotEmpty) ...[
         const SizedBox(height: 10),
         Row(
           children: [
-            Icon(Icons.info_outline, size: 14, color: theme.colorScheme.outline),
+            Icon(
+              Icons.info_outline,
+              size: 14,
+              color: theme.colorScheme.outline,
+            ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                '图片会在保存后删除',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: theme.colorScheme.outline),
+                '保存后将删除 ${_removedPaths.length} 张旧图片',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ),
             TextButton(
-              onPressed: () => setState(() => _removeImage = false),
+              onPressed: () => setState(() => _removedPaths.clear()),
               child: const Text('撤销'),
             ),
           ],
         ),
       ],
+      const SizedBox(height: 12),
+      Text(
+        '图片会复制到 App 私有目录。一条记录可以放多张图，'
+        'AI 整理会把它们放在一起理解。',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.outline,
+          height: 1.4,
+        ),
+      ),
     ];
-  }
-}
-
-class _PreviewBox extends StatelessWidget {
-  const _PreviewBox({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: child,
-    );
   }
 }
 
@@ -369,8 +337,9 @@ class _RevisionTimeline extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
-    final AsyncValue<List<InboxItemRevision>> revisionsAsync =
-        ref.watch(inboxRevisionsProvider(itemId));
+    final AsyncValue<List<InboxItemRevision>> revisionsAsync = ref.watch(
+      inboxRevisionsProvider(itemId),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,27 +359,29 @@ class _RevisionTimeline extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         switch (revisionsAsync) {
-          AsyncData(:final List<InboxItemRevision> value) => value.isEmpty
-              ? Text(
-                  '没有记录',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.outline),
-                )
-              : Column(
-                  children: [
-                    for (int i = 0; i < value.length; i++)
-                      _RevisionRow(
-                        revision: value[i],
-                        isFirst: i == 0,
-                        isLast: i == value.length - 1,
-                      ),
-                  ],
-                ),
+          AsyncData(:final List<InboxItemRevision> value) =>
+            value.isEmpty
+                ? Text(
+                    '没有记录',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  )
+                : Column(
+                    children: [
+                      for (int i = 0; i < value.length; i++)
+                        _RevisionRow(
+                          revision: value[i],
+                          isFirst: i == 0,
+                          isLast: i == value.length - 1,
+                        ),
+                    ],
+                  ),
           AsyncError(:final Object error) => Text('读取失败：$error'),
           _ => const Padding(
-              padding: EdgeInsets.all(12),
-              child: Center(child: CircularProgressIndicator()),
-            ),
+            padding: EdgeInsets.all(12),
+            child: Center(child: CircularProgressIndicator()),
+          ),
         },
       ],
     );
@@ -432,8 +403,9 @@ class _RevisionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isCreated = revision.kind == 'created';
-    final Color dotColor =
-        isCreated ? theme.colorScheme.primary : theme.colorScheme.tertiary;
+    final Color dotColor = isCreated
+        ? theme.colorScheme.primary
+        : theme.colorScheme.tertiary;
 
     return IntrinsicHeight(
       child: Row(
@@ -492,8 +464,9 @@ class _RevisionRow extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         AppDate.friendly(revision.recordedAt),
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: theme.colorScheme.outline),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
@@ -533,6 +506,15 @@ class _PickedThumb extends StatelessWidget {
             height: 96,
             fit: BoxFit.cover,
             cacheWidth: 288,
+            errorBuilder: (_, _, _) => Container(
+              width: 96,
+              height: 96,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
           ),
         ),
         Positioned(

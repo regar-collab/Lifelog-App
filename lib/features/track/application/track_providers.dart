@@ -33,17 +33,22 @@ final trackSessionsProvider = StreamProvider<List<TrackSession>>(
 /// 依赖采集器的 bufferedCount —— 采集过程中每落一批点就刷新一次统计。
 final todaySummaryProvider = FutureProvider<TrackSummary>((Ref ref) async {
   // 订阅一下采集状态，落库批次变化时自动重算
-  ref.watch(trackRecorderProvider.select((TrackRecorderState s) => s.bufferedCount));
+  ref.watch(
+    trackRecorderProvider.select((TrackRecorderState s) => s.bufferedCount),
+  );
   return ref.watch(trackRepositoryProvider).todaySummary();
 });
 
 /// 要画在地图上的轨迹点（GCJ-02 坐标）。
 ///
 /// 正在记录时显示当前会话，否则显示最近一次会话。
-final trackMapPointsProvider = FutureProvider<List<LatLng>>((Ref ref) async {
+final trackMapPointsProvider = FutureProvider.autoDispose<List<LatLng>>((
+  Ref ref,
+) async {
   // 采集每落一批点就重画一次
   ref.watch(
-      trackRecorderProvider.select((TrackRecorderState s) => s.bufferedCount));
+    trackRecorderProvider.select((TrackRecorderState s) => s.bufferedCount),
+  );
 
   final TrackRepository repo = ref.watch(trackRepositoryProvider);
   final TrackRecorderState recorder = ref.watch(trackRecorderProvider);

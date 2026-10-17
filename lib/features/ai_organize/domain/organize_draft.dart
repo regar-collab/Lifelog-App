@@ -27,19 +27,33 @@ class OrganizeDraft {
   final List<int> sourceIndexes;
 
   factory OrganizeDraft.fromJson(Map<String, dynamic> json) {
+    final String? title = _asString(json['title']);
+    if (title == null) {
+      throw const FormatException('草案缺少标题');
+    }
+
+    // 时间缺失/非法时直接丢弃这条草案。以前会静默回退到“现在”，
+    // 用户很容易把一条时间错误的日程写进日程表。
+    final DateTime? startAt = _parseDate(json['start_at']);
+    if (startAt == null) {
+      throw const FormatException('草案缺少合法的开始时间');
+    }
+
+    final DateTime? rawEnd = _parseDate(json['end_at']);
+    final int? priority = _asInt(json['priority']);
+    final Object? rawIndexes = json['source_indexes'];
+
     return OrganizeDraft(
-      title: _asString(json['title']) ?? '未命名',
+      title: title,
       description: _asString(json['description']),
-      startAt: _parseDate(json['start_at']) ?? DateTime.now(),
-      endAt: _parseDate(json['end_at']),
+      startAt: startAt,
+      endAt: (rawEnd != null && rawEnd.isAfter(startAt)) ? rawEnd : null,
       isAllDay: json['is_all_day'] == true,
       location: _asString(json['location']),
-      priority: _asInt(json['priority']) ?? 0,
-      sourceIndexes: (json['source_indexes'] as List<dynamic>?)
-              ?.map(_asInt)
-              .whereType<int>()
-              .toList() ??
-          const [],
+      priority: priority == 1 ? 1 : 0,
+      sourceIndexes: rawIndexes is List
+          ? rawIndexes.map(_asInt).whereType<int>().toList()
+          : const <int>[],
     );
   }
 
@@ -59,7 +73,10 @@ class OrganizeDraft {
     if (value is! String || value.trim().isEmpty) return null;
     // 模型有时会给 "2026-10-11 15:00:00"（空格而非 T），统一成标准格式
     final normalized = value.trim().replaceFirst(' ', 'T');
-    return DateTime.tryParse(normalized);
+    final DateTime? parsed = DateTime.tryParse(normalized);
+    // 带 Z / +08:00 时 tryParse 返回 UTC，直接取 hour 会差时区；
+    // 统一转成本地时间，预览和入库都用同一套时刻。
+    return parsed?.toLocal();
   }
 }
 
@@ -72,6 +89,7 @@ class OrganizeOutcome {
     this.rawResponse,
     this.promptTokens,
     this.completionTokens,
+    this.skippedDrafts = 0,
   });
 
   /// 本次整理在 ai_runs 里的记录 id
@@ -85,4 +103,7 @@ class OrganizeOutcome {
   final String? rawResponse;
   final int? promptTokens;
   final int? completionTokens;
+
+  /// 模型返回了、但字段不合法而被跳过的草案数量。
+  final int skippedDrafts;
 }

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lifelog/core/router/home_shell.dart';
 import 'package:lifelog/core/utils/date_utils.dart';
 import 'package:lifelog/data/db/app_database.dart';
-import 'package:lifelog/data/services/deepseek_service.dart';
+import 'package:lifelog/data/db/daos/ai_run_dao.dart';
+import 'package:lifelog/data/services/ai/ai_service.dart';
 import 'package:lifelog/features/ai_organize/application/organize_providers.dart';
 import 'package:lifelog/features/ai_organize/data/organize_repository.dart';
 import 'package:lifelog/features/ai_organize/domain/organize_draft.dart';
+import 'package:lifelog/features/ai_organize/presentation/widgets/ai_run_detail_sheet.dart';
 import 'package:lifelog/features/ai_organize/presentation/widgets/organize_preview_sheet.dart';
 import 'package:lifelog/features/inbox/application/inbox_providers.dart';
-import 'package:lifelog/features/settings/application/settings_providers.dart';
+import 'package:lifelog/features/settings/application/ai_providers.dart';
 
 /// 模块 2 AI 整理。
 ///
@@ -24,16 +27,19 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
   bool _running = false;
 
   Future<void> _start() async {
+    if (_running) return;
     FocusScope.of(context).unfocus();
     setState(() => _running = true);
 
     try {
-      final ai = await ref.read(deepSeekServiceProvider.future);
+      final ai = await ref.read(aiServiceProvider.future);
       final repo = ref.read(organizeRepositoryProvider);
       final OrganizeOutcome outcome = await repo.generateDrafts(ai);
 
       if (!mounted) return;
-      setState(() => _running = false);
+      // 不要在这里把 _running 置回 false：预览弹窗关闭后还要 commit，
+      // 提前复位会让「开始整理」重新可点，再点一次就会生成重复日程。
+      // 统一交给 finally。
 
       if (outcome.drafts.isEmpty) {
         await _handleEmptyDrafts(outcome);
@@ -42,27 +48,20 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
 
       final List<OrganizeDraft>? selected =
           await showModalBottomSheet<List<OrganizeDraft>>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (_) => OrganizePreviewSheet(outcome: outcome),
-      );
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (_) => OrganizePreviewSheet(outcome: outcome),
+          );
 
       if (selected == null || !mounted) return;
 
-      final int count = await repo.commit(
-        outcome: outcome,
-        selected: selected,
-      );
+      final int count = await repo.commit(outcome: outcome, selected: selected);
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            count == 0
-                ? '没有写入日程，收集箱条目已标记为已整理'
-                : '已写入 $count 条日程',
-          ),
+          content: Text(count == 0 ? '没有写入日程，收集箱条目已标记为已整理' : '已写入 $count 条日程'),
         ),
       );
     } catch (e) {
@@ -103,14 +102,26 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
         .read(organizeRepositoryProvider)
         .commit(outcome: outcome, selected: const []);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已标记为已整理')),
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已标记为已整理')));
+  }
+
+  /// 点开一条整理记录，按需读取完整 prompt / 原始返回。
+  Future<void> _showRunDetails(AiRunSummary summary) async {
+    final AiRun? run = await ref.read(aiRunDaoProvider).findById(summary.id);
+    if (!mounted || run == null) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => AiRunDetailSheet(run: run),
     );
   }
 
   void _showError(Object e) {
     final String message = switch (e) {
-      DeepSeekException(:final String message) => message,
+      AiException(:final String message) => message,
       OrganizeException(:final String message) => message,
       _ => e.toString(),
     };
@@ -126,10 +137,16 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
 
   @override
   Widget build(BuildContext context) {
+    // 不在整理 Tab 时不构建页面，也不订阅整理记录。
+    // StatefulShellRoute 会保留所有 Tab，不这样做的话日志列表会常驻。
+    if (ActiveTabScope.of(context) != 1) {
+      return const SizedBox.shrink();
+    }
+
     final ThemeData theme = Theme.of(context);
 
     final AsyncValue<int> pendingAsync = ref.watch(inboxPendingCountProvider);
-    final AsyncValue<List<AiRun>> runsAsync = ref.watch(aiRunsProvider);
+    final AsyncValue<List<AiRunSummary>> runsAsync = ref.watch(aiRunsProvider);
 
     final int pending = switch (pendingAsync) {
       AsyncData(:final int value) => value,
@@ -149,8 +166,11 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.auto_awesome,
-                          color: theme.colorScheme.primary, size: 22),
+                      Icon(
+                        Icons.auto_awesome,
+                        color: theme.colorScheme.primary,
+                        size: 22,
+                      ),
                       const SizedBox(width: 10),
                       Text(
                         '待整理 $pending 条',
@@ -162,8 +182,9 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
                   Text(
                     '把收集箱里攒下的文字和图片发给 DeepSeek，整理成日程草案。'
                     '在你确认之前，不会写进日程表。',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   FilledButton.icon(
@@ -178,8 +199,9 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
                     Text(
                       '收集箱里没有待整理的内容',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.outline),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
                     ),
                   ],
                 ],
@@ -196,31 +218,36 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
           ),
           const SizedBox(height: 8),
           switch (runsAsync) {
-            AsyncData(:final List<AiRun> value) => value.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 28),
-                    child: Text(
-                      '还没有整理过',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.outline),
-                    ),
-                  )
-                : Card(
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < value.length; i++) ...[
-                          if (i > 0) const Divider(height: 1, indent: 16),
-                          _RunTile(run: value[i]),
+            AsyncData(:final List<AiRunSummary> value) =>
+              value.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 28),
+                      child: Text(
+                        '还没有整理过',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    )
+                  : Card(
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < value.length; i++) ...[
+                            if (i > 0) const Divider(height: 1, indent: 16),
+                            _RunTile(
+                              run: value[i],
+                              onTap: () => _showRunDetails(value[i]),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
             AsyncError(:final Object error) => Text('读取失败：$error'),
             _ => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
           },
         ],
       ),
@@ -229,27 +256,31 @@ class _OrganizePageState extends ConsumerState<OrganizePage> {
 }
 
 class _RunTile extends StatelessWidget {
-  const _RunTile({required this.run});
+  const _RunTile({required this.run, this.onTap});
 
-  final AiRun run;
+  final AiRunSummary run;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
     final (String label, Color color, IconData icon) = switch (run.status) {
-      'success' => ('成功', theme.colorScheme.primary, Icons.check_circle_outline),
+      'success' => (
+        '成功',
+        theme.colorScheme.primary,
+        Icons.check_circle_outline,
+      ),
       'failed' => ('失败', theme.colorScheme.error, Icons.error_outline),
       _ => ('进行中', theme.colorScheme.tertiary, Icons.hourglass_empty),
     };
 
     return ListTile(
       dense: true,
+      onTap: onTap,
       leading: Icon(icon, size: 20, color: color),
       title: Text(
-        run.status == 'success'
-            ? '生成 ${run.createdCount} 条日程'
-            : label,
+        run.status == 'success' ? '生成 ${run.createdCount} 条日程' : label,
         style: theme.textTheme.bodyMedium,
       ),
       subtitle: Text(
@@ -258,8 +289,9 @@ class _RunTile extends StatelessWidget {
             : AppDate.friendly(run.startedAt),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.labelSmall
-            ?.copyWith(color: theme.colorScheme.outline),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.outline,
+        ),
       ),
     );
   }

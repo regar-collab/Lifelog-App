@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lifelog/core/router/home_shell.dart';
+import 'package:lifelog/features/ai_chat/presentation/ai_chat_page.dart';
+import 'package:lifelog/features/ai_chat/presentation/ai_chat_settings_page.dart';
 import 'package:lifelog/features/ai_organize/presentation/organize_page.dart';
 import 'package:lifelog/features/inbox/presentation/inbox_compose_page.dart';
 import 'package:lifelog/features/inbox/presentation/inbox_page.dart';
@@ -18,47 +20,41 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/inbox',
   routes: [
     StatefulShellRoute.indexedStack(
-      builder: (BuildContext context, GoRouterState state,
-              StatefulNavigationShell navigationShell) =>
-          HomeShell(navigationShell: navigationShell),
+      builder: (
+        BuildContext context,
+        GoRouterState state,
+        StatefulNavigationShell navigationShell,
+      ) => HomeShell(navigationShell: navigationShell),
       branches: [
         StatefulShellBranch(
           routes: [
-            GoRoute(
-              path: '/inbox',
-              builder: (_, _) => const InboxPage(),
-            ),
+            GoRoute(path: '/inbox', builder: (_, _) => const InboxPage()),
           ],
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(
-              path: '/organize',
-              builder: (_, _) => const OrganizePage(),
-            ),
+            GoRoute(path: '/organize', builder: (_, _) => const OrganizePage()),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [GoRoute(path: '/ai', builder: (_, _) => const AiChatPage())],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
           ],
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(
-              path: '/schedule',
-              builder: (_, _) => const SchedulePage(),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/track',
-              builder: (_, _) => const TrackPage(),
-            ),
+            GoRoute(path: '/track', builder: (_, _) => const TrackPage()),
           ],
         ),
       ],
     ),
+    GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
     GoRoute(
-      path: '/settings',
-      builder: (_, _) => const SettingsPage(),
+      path: '/ai/settings',
+      builder: (_, _) => const AiChatSettingsPage(),
     ),
     GoRoute(
       path: '/compose',
@@ -67,14 +63,8 @@ final GoRouter appRouter = GoRouter(
         return InboxComposePage(itemId: id == null ? null : int.tryParse(id));
       },
     ),
-    GoRoute(
-      path: '/track/health',
-      builder: (_, _) => const TrackHealthPage(),
-    ),
-    GoRoute(
-      path: '/schedule/new',
-      builder: (_, _) => const ScheduleEditPage(),
-    ),
+    GoRoute(path: '/track/health', builder: (_, _) => const TrackHealthPage()),
+    GoRoute(path: '/schedule/new', builder: (_, _) => const ScheduleEditPage()),
     GoRoute(
       path: '/schedule/edit',
       builder: (BuildContext context, GoRouterState state) {

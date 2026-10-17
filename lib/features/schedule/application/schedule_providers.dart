@@ -28,23 +28,25 @@ final schedulesProvider = StreamProvider<List<Schedule>>(
 );
 
 /// 某一周的日程。参数是这一周任意一天（内部会归到那天的 00:00 起 7 天）。
-final weekSchedulesProvider =
-    StreamProvider.family<List<Schedule>, DateTime>((Ref ref, DateTime anchor) {
-  final DateTime from = DateTime(anchor.year, anchor.month, anchor.day);
-  final DateTime to = from.add(const Duration(days: 7));
+///
+/// autoDispose：每次翻周参数都不同，不释放的话翻过的每一周都会留下
+/// 一个永久存活的数据库监听器。
+final weekSchedulesProvider = StreamProvider.autoDispose
+    .family<List<Schedule>, DateTime>((Ref ref, DateTime anchor) {
+      final DateTime from = DateTime(anchor.year, anchor.month, anchor.day);
+      final DateTime to = from.add(const Duration(days: 7));
 
-  return ref.watch(scheduleRepositoryProvider).watchRange(
-        from.millisecondsSinceEpoch,
-        to.millisecondsSinceEpoch,
-      );
-});
+      return ref
+          .watch(scheduleRepositoryProvider)
+          .watchRange(from.millisecondsSinceEpoch, to.millisecondsSinceEpoch);
+    });
 
 /// 某条日程的来源收集箱条目。双击气泡展开时才需要，所以用 FutureProvider
 /// 而不是 StreamProvider —— 它是按需拉一次的快照。
-final scheduleSourceItemsProvider =
-    FutureProvider.family<List<InboxItem>, int>((Ref ref, int scheduleId) async {
-  final repo = ref.watch(scheduleRepositoryProvider);
-  final Schedule? schedule = await repo.findById(scheduleId);
-  if (schedule == null) return const [];
-  return repo.getSourceItems(schedule);
-});
+final scheduleSourceItemsProvider = FutureProvider.autoDispose
+    .family<List<InboxItem>, int>((Ref ref, int scheduleId) async {
+      final repo = ref.watch(scheduleRepositoryProvider);
+      final Schedule? schedule = await repo.findById(scheduleId);
+      if (schedule == null) return const [];
+      return repo.getSourceItems(schedule);
+    });

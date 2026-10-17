@@ -9,6 +9,7 @@ class TrackSummary {
     required this.distanceM,
     this.firstAt,
     this.lastAt,
+    this.durationMs,
   });
 
   final int pointCount;
@@ -16,11 +17,17 @@ class TrackSummary {
   final int? firstAt;
   final int? lastAt;
 
+  /// 各会话时长之和。跨会话统计时不能用 last-first，
+  /// 否则会把两段记录之间的空档也算成“记录时长”。
+  final int? durationMs;
+
   /// 公里数，保留两位
   String get distanceKm => (distanceM / 1000).toStringAsFixed(2);
 
   /// 时长（分钟）
   int get durationMinutes {
+    final int? d = durationMs;
+    if (d != null) return (d / 60000).round();
     final int? a = firstAt;
     final int? b = lastAt;
     if (a == null || b == null) return 0;
@@ -79,9 +86,28 @@ class TrackRepository {
   }
 
   /// 今天的统计：把所有会话的点合起来算。
+  ///
+  /// 必须按会话分组累加：上午和下午两段记录之间的位移不是“走”出来的，
+  /// 直接按时间排序累加会把坐车/在家的距离也算进去。
   Future<TrackSummary> todaySummary() async {
     final List<TrackPoint> points = await _dao.getPointsByDay(DateTime.now());
     return _summarisePoints(points);
+  }
+
+  /// App 启动时，收尾上次没来得及正常结束的会话。
+  ///
+  /// 进程被杀、手机重启后，数据库里可能残留 status=recording 的会话。
+  /// 不处理的话历史里会永远显示“记录中”，统计也失真。
+  Future<int> recoverInterruptedSessions() async {
+    final List<TrackSession> sessions = await _dao.getRecordingSessions();
+    for (final TrackSession session in sessions) {
+      final List<TrackPoint> points = await _dao.getPoints(session.id);
+      final int at = points.isNotEmpty
+          ? points.last.recordedAt
+          : DateTime.now().millisecondsSinceEpoch;
+      await _dao.finishSession(session.id, at: at, status: 'interrupted');
+    }
+    return sessions.length;
   }
 
   TrackSummary _summarisePoints(List<TrackPoint> points) {
@@ -89,21 +115,65 @@ class TrackRepository {
       return const TrackSummary(pointCount: 0, distanceM: 0);
     }
 
+    // 相同会话的点放一组，组内才允许累加距离
+    final Map<int, List<TrackPoint>> bySession = <int, List<TrackPoint>>{};
+    int? firstAt;
+    int? lastAt;
+    for (final TrackPoint p in points) {
+      bySession.putIfAbsent(p.sessionId, () => <TrackPoint>[]).add(p);
+      if (firstAt == null || p.recordedAt < firstAt) firstAt = p.recordedAt;
+      if (lastAt == null || p.recordedAt > lastAt) lastAt = p.recordedAt;
+    }
+
     double distance = 0;
-    for (int i = 1; i < points.length; i++) {
-      distance += CoordinateConverter.distanceMeters(
-        points[i - 1].latWgs,
-        points[i - 1].lngWgs,
-        points[i].latWgs,
-        points[i].lngWgs,
+    int durationMs = 0;
+    for (final List<TrackPoint> group in bySession.values) {
+      group.sort(
+        (TrackPoint a, TrackPoint b) => a.recordedAt.compareTo(b.recordedAt),
       );
+      distance += _distanceForGroup(group);
+      if (group.length > 1) {
+        durationMs += group.last.recordedAt - group.first.recordedAt;
+      }
     }
 
     return TrackSummary(
       pointCount: points.length,
       distanceM: distance,
-      firstAt: points.first.recordedAt,
-      lastAt: points.last.recordedAt,
+      firstAt: firstAt,
+      lastAt: lastAt,
+      durationMs: durationMs,
     );
+  }
+
+  /// 组内里程。精度差于 100 米的点不参与计算，避免 GPS 漂移制造虚假里程；
+  /// 相邻两点算出来的速度超过 45 m/s（约 162 km/h）也视为跳点。
+  double _distanceForGroup(List<TrackPoint> points) {
+    double total = 0;
+    TrackPoint? previous;
+
+    for (final TrackPoint p in points) {
+      final bool usable = p.accuracy == null || p.accuracy! <= 100;
+      if (!usable) {
+        // 断掉这一段，避免把坏点前后的两个好点直接连成一条直线
+        previous = null;
+        continue;
+      }
+
+      if (previous != null) {
+        final double d = CoordinateConverter.distanceMeters(
+          previous.latWgs,
+          previous.lngWgs,
+          p.latWgs,
+          p.lngWgs,
+        );
+        final int dtMs = p.recordedAt - previous.recordedAt;
+        final bool plausible = dtMs > 0 ? d / (dtMs / 1000) <= 45 : d < 5;
+        if (plausible) total += d;
+      }
+      previous = p;
+    }
+
+    return total;
   }
 }

@@ -34,7 +34,8 @@ class InboxTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool hasImage = item.imagePath != null;
+    final List<String> imagePaths = MediaStorage.parsePaths(item.imagePath);
+    final bool hasImage = imagePaths.isNotEmpty;
     final bool isSkipped = item.organizePolicy == 'skip';
 
     return InkWell(
@@ -45,7 +46,10 @@ class InboxTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (hasImage)
-              _Thumbnail(relativePath: item.imagePath!)
+              _Thumbnail(
+                relativePath: imagePaths.first,
+                count: imagePaths.length,
+              )
             else
               _TypeIcon(type: item.type),
             const SizedBox(width: 12),
@@ -64,15 +68,19 @@ class InboxTile extends StatelessWidget {
                     children: [
                       Text(
                         AppDate.friendly(item.createdAt),
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: theme.colorScheme.outline),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       _StatusChip(item: item),
                       if (item.source == 'share') ...[
                         const SizedBox(width: 6),
-                        Icon(Icons.share_outlined,
-                            size: 12, color: theme.colorScheme.outline),
+                        Icon(
+                          Icons.share_outlined,
+                          size: 12,
+                          color: theme.colorScheme.outline,
+                        ),
                       ],
                     ],
                   ),
@@ -80,8 +88,11 @@ class InboxTile extends StatelessWidget {
               ),
             ),
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert,
-                  size: 20, color: theme.colorScheme.outline),
+              icon: Icon(
+                Icons.more_vert,
+                size: 20,
+                color: theme.colorScheme.outline,
+              ),
               onSelected: (String value) {
                 switch (value) {
                   case 'reorganize':
@@ -133,8 +144,11 @@ class InboxTile extends StatelessWidget {
                   child: ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.delete_outline,
-                        size: 20, color: theme.colorScheme.error),
+                    leading: Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: theme.colorScheme.error,
+                    ),
                     title: Text(
                       '删除',
                       style: TextStyle(color: theme.colorScheme.error),
@@ -153,18 +167,24 @@ class InboxTile extends StatelessWidget {
     final String content = item.content?.trim() ?? '';
     if (content.isNotEmpty) return content;
 
+    final int imageCount = MediaStorage.parsePaths(item.imagePath).length;
+    final String imageLabel = imageCount > 1
+        ? '（$imageCount 张图片，未加备注）'
+        : '（图片，未加备注）';
+
     return switch (item.type) {
-      'screenshot' => '（截图，未加备注）',
-      'image' => '（图片，未加备注）',
+      'screenshot' => imageCount > 1 ? '（$imageCount 张截图，未加备注）' : '（截图，未加备注）',
+      'image' => imageLabel,
       _ => '（空）',
     };
   }
 }
 
 class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.relativePath});
+  const _Thumbnail({required this.relativePath, this.count = 1});
 
   final String relativePath;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
@@ -172,18 +192,18 @@ class _Thumbnail extends StatelessWidget {
     final String? absolute = MediaStorage.resolveSync(relativePath);
 
     Widget placeholder(IconData icon) => Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: theme.colorScheme.outline, size: 22),
-        );
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, color: theme.colorScheme.outline, size: 22),
+    );
 
     if (absolute == null) return placeholder(Icons.image_outlined);
 
-    return ClipRRect(
+    final Widget thumbnail = ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Image.file(
         File(absolute),
@@ -193,6 +213,34 @@ class _Thumbnail extends StatelessWidget {
         cacheWidth: 168, // 缩略图只解 3x 分辨率，省内存
         errorBuilder: (_, _, _) => placeholder(Icons.broken_image_outlined),
       ),
+    );
+
+    if (count <= 1) return thumbnail;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        thumbnail,
+        Positioned(
+          right: 2,
+          bottom: 2,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

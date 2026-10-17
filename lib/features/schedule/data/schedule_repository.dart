@@ -31,6 +31,7 @@ class ScheduleRepository {
     String? location,
     int priority = 0,
   }) {
+    _validateRange(startAt: startAt, endAt: endAt);
     final int now = DateTime.now().millisecondsSinceEpoch;
     return _dao.insertSchedule(
       SchedulesCompanion.insert(
@@ -59,6 +60,17 @@ class ScheduleRepository {
     String? location,
     int? priority,
   }) {
+    // 编辑时也要校验：UI 可能传回非法区间，AI 生成的日程也可能被改坏
+    final DateTime effectiveStart =
+        startAt ?? DateTime.fromMillisecondsSinceEpoch(schedule.startAt);
+    final DateTime? effectiveEnd = clearEndAt
+        ? null
+        : endAt ??
+              (schedule.endAt == null
+                  ? null
+                  : DateTime.fromMillisecondsSinceEpoch(schedule.endAt!));
+    _validateRange(startAt: effectiveStart, endAt: effectiveEnd);
+
     // 注意 Drift 的 copyWith 参数类型规则：
     // 非空列（title/startAt/isAllDay/priority）用裸类型，null 表示「不修改」；
     // 可空列（description/endAt/location）用 Value<T> 包装，才能区分
@@ -72,12 +84,16 @@ class ScheduleRepository {
       endAt: clearEndAt
           ? const Value(null)
           : endAt == null
-              ? const Value.absent()
-              : Value(endAt.millisecondsSinceEpoch),
+          ? const Value.absent()
+          : Value(endAt.millisecondsSinceEpoch),
       isAllDay: isAllDay,
-      location:
-          location == null ? const Value.absent() : Value(location.trim()),
+      location: location == null
+          ? const Value.absent()
+          : Value(location.trim()),
       priority: priority,
+      // 用户动手改过的 AI 日程标记为 ai-edited：
+      // 之后重新整理时只清理未被编辑过的 ai 日程，避免覆盖用户的手动修改
+      origin: schedule.origin == 'ai' ? 'ai-edited' : null,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
     );
     return _dao.updateSchedule(updated);
@@ -110,13 +126,21 @@ class ScheduleRepository {
       final Object? decoded = jsonDecode(raw);
       if (decoded is! List) return const [];
 
-      final List<int> ids =
-          decoded.whereType<num>().map((num n) => n.toInt()).toList();
+      final List<int> ids = decoded
+          .whereType<num>()
+          .map((num n) => n.toInt())
+          .toList();
       if (ids.isEmpty) return const [];
 
       return await _inboxDao.findByIds(ids);
     } catch (_) {
       return const [];
+    }
+  }
+
+  static void _validateRange({required DateTime startAt, DateTime? endAt}) {
+    if (endAt != null && !endAt.isAfter(startAt)) {
+      throw ArgumentError('结束时间必须晚于开始时间');
     }
   }
 }

@@ -1,12 +1,11 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
-import 'package:lifelog/core/constants/app_constants.dart';
 import 'package:lifelog/data/db/app_database.dart';
 import 'package:lifelog/data/db/daos/ai_run_dao.dart';
 import 'package:lifelog/data/db/daos/inbox_dao.dart';
 import 'package:lifelog/data/db/daos/schedule_dao.dart';
-import 'package:lifelog/data/services/deepseek_service.dart';
+import 'package:lifelog/data/services/ai/ai_service.dart';
 import 'package:lifelog/data/services/media_storage.dart';
 import 'package:lifelog/features/ai_organize/domain/organize_draft.dart';
 import 'package:lifelog/features/ai_organize/domain/organize_prompt.dart';
@@ -34,7 +33,7 @@ class OrganizeRepository {
   ///
   /// [ai] 由调用方传入：API Key 存在安全存储里，读取是异步的，
   /// 没法在 Repository 构造时同步拿到。
-  Future<OrganizeOutcome> generateDrafts(DeepSeekService ai) async {
+  Future<OrganizeOutcome> generateDrafts(AiService ai) async {
     final List<InboxItem> items = await _inboxDao.getPendingItems();
 
     if (items.isEmpty) {
@@ -42,7 +41,7 @@ class OrganizeRepository {
     }
 
     final DateTime now = DateTime.now();
-    const String model = AppConstants.deepseekModel;
+    final String model = '${ai.providerName} / ${ai.modelName}';
 
     final int runId = await _aiRunDao.insertRun(
       AiRunsCompanion.insert(
@@ -53,27 +52,32 @@ class OrganizeRepository {
       ),
     );
 
-    try {
-      final String prompt = buildOrganizePrompt(items: items, now: now);
-      final List<String> images = await _collectImages(items);
+    // 失败时也尽量保留 prompt 和模型原始返回，方便事后排查/救数据
+    String? prompt;
+    String? reply;
 
-      // 统一用同一个多模态模型：有没有图都用它，不必切换。
-      final String reply = images.isEmpty
-          ? await ai.chat(
-              prompt: prompt,
-              model: model,
-              jsonMode: true,
-              temperature: 0.2,
-            )
+    try {
+      // 先收集图片，再拼 prompt：prompt 必须知道哪些图真的发出去了
+      final _ImageBundle bundle = await _collectImages(items);
+
+      prompt = buildOrganizePrompt(
+        items: items,
+        now: now,
+        sentImageCounts: bundle.sentCounts,
+        totalImageCounts: bundle.totalCounts,
+      );
+
+      // 有没有图都走同一个服务；没有图时用主模型，有图时用视觉模型。
+      reply = bundle.dataUrls.isEmpty
+          ? await ai.chat(prompt: prompt, jsonMode: true, temperature: 0.2)
           : await ai.chatWithImages(
               prompt: prompt,
-              images: images,
-              model: model,
+              images: bundle.dataUrls,
               jsonMode: true,
               temperature: 0.2,
             );
 
-      final List<OrganizeDraft> drafts = _parseDrafts(reply);
+      final _ParsedDrafts parsed = _parseDrafts(reply);
 
       await _aiRunDao.updateRun(
         AiRun(
@@ -83,7 +87,7 @@ class OrganizeRepository {
           inputItemIds: jsonEncode(items.map((e) => e.id).toList()),
           requestPrompt: prompt,
           rawResponse: reply,
-          createdCount: drafts.length,
+          createdCount: parsed.drafts.length,
           errorMessage: null,
           promptTokens: null,
           completionTokens: null,
@@ -94,7 +98,8 @@ class OrganizeRepository {
 
       return OrganizeOutcome(
         aiRunId: runId,
-        drafts: drafts,
+        drafts: parsed.drafts,
+        skippedDrafts: parsed.skipped,
         inboxItemIds: items.map((e) => e.id).toList(),
         rawResponse: reply,
       );
@@ -105,8 +110,8 @@ class OrganizeRepository {
           status: 'failed',
           model: model,
           inputItemIds: jsonEncode(items.map((e) => e.id).toList()),
-          requestPrompt: null,
-          rawResponse: null,
+          requestPrompt: prompt,
+          rawResponse: reply,
           createdCount: 0,
           errorMessage: e.toString(),
           promptTokens: null,
@@ -135,71 +140,114 @@ class OrganizeRepository {
         i + 1: outcome.inboxItemIds[i],
     };
 
-    final List<SchedulesCompanion> rows = selected.map((draft) {
+    final List<SchedulesCompanion> rows = <SchedulesCompanion>[];
+    final Set<int> selectedItemIds = <int>{};
+
+    for (final OrganizeDraft draft in selected) {
       final List<int> itemIds = draft.sourceIndexes
-          .map((idx) => sourceIndexToItemId[idx])
+          .map((int idx) => sourceIndexToItemId[idx])
           .whereType<int>()
           .toList();
+      selectedItemIds.addAll(itemIds);
 
-      return SchedulesCompanion.insert(
-        title: draft.title,
-        description: Value(draft.description),
-        startAt: draft.startAt.millisecondsSinceEpoch,
-        endAt: Value(draft.endAt?.millisecondsSinceEpoch),
-        isAllDay: Value(draft.isAllDay),
-        location: Value(draft.location),
-        priority: Value(draft.priority),
-        origin: const Value('ai'),
-        aiRunId: Value(outcome.aiRunId),
-        sourceItemIds: Value(itemIds.isEmpty ? null : jsonEncode(itemIds)),
-        createdAt: now,
-        updatedAt: now,
+      rows.add(
+        SchedulesCompanion.insert(
+          title: draft.title,
+          description: Value(draft.description),
+          startAt: draft.startAt.millisecondsSinceEpoch,
+          endAt: Value(draft.endAt?.millisecondsSinceEpoch),
+          isAllDay: Value(draft.isAllDay),
+          location: Value(draft.location),
+          priority: Value(draft.priority),
+          origin: const Value('ai'),
+          aiRunId: Value(outcome.aiRunId),
+          sourceItemIds: Value(itemIds.isEmpty ? null : jsonEncode(itemIds)),
+          createdAt: now,
+          updatedAt: now,
+        ),
       );
-    }).toList();
-
-    if (rows.isNotEmpty) {
-      await _scheduleDao.insertAll(rows);
     }
 
-    await _inboxDao.markProcessed(outcome.inboxItemIds);
+    // 日程写入与收集箱标记必须是原子的：中途失败会导致同一批内容
+    // 下次整理时再生成一遍，出现重复日程。
+    return _scheduleDao.transaction(() async {
+      // 重新整理时，先删掉上一轮由 AI 生成、用户没有编辑过的旧日程。
+      // origin 变成 ai-edited 的说明用户手动改过，不能覆盖。
+      final List<Schedule> stale = await _scheduleDao
+          .getAiSchedulesBySourceItemIds(selectedItemIds.toList());
+      if (stale.isNotEmpty) {
+        await _scheduleDao.deleteByIds(
+          stale.map((Schedule s) => s.id).toList(),
+        );
+      }
 
-    return rows.length;
+      if (rows.isNotEmpty) {
+        await _scheduleDao.insertAll(rows);
+      }
+
+      await _inboxDao.markProcessed(outcome.inboxItemIds);
+      return rows.length;
+    });
   }
+
+  /// 单张图的上限。超过就不发，避免 OOM/请求超时。
+  static const int maxImageBytes = 8 * 1024 * 1024;
+
+  /// 一次请求里所有图片的原始字节总预算（base64 后约 ×1.33）。
+  static const int maxTotalImageBytes = 20 * 1024 * 1024;
 
   /// 把图片读出来转成 base64 data URL。
   ///
-  /// 超过 [maxImages] 的图片会被丢掉 —— 宁可少看几张，也不要让请求超时。
-  Future<List<String>> _collectImages(List<InboxItem> items) async {
-    final List<String> dataUrls = [];
+  /// 超过 [maxImages]、单张过大或总量超预算的图片会被跳过；
+  /// 跳过了哪些条目会写进 prompt，让模型知道“这条只有备注可参考”。
+  Future<_ImageBundle> _collectImages(List<InboxItem> items) async {
+    final _ImageBundle bundle = _ImageBundle();
+    int totalBytes = 0;
 
     for (final InboxItem item in items) {
-      if (dataUrls.length >= maxImages) break;
-      final String? path = item.imagePath;
-      if (path == null) continue;
+      final List<String> paths = MediaStorage.parsePaths(item.imagePath);
+      if (paths.isEmpty) continue;
 
-      try {
-        final file = await MediaStorage.resolve(path);
-        if (!await file.exists()) continue;
+      bundle.totalCounts[item.id] = paths.length;
+      int sent = 0;
 
-        final bytes = await file.readAsBytes();
-        final ext = p.extension(path).replaceFirst('.', '').toLowerCase();
-        final mime = switch (ext) {
-          'png' => 'image/png',
-          'webp' => 'image/webp',
-          'gif' => 'image/gif',
-          _ => 'image/jpeg',
-        };
-        dataUrls.add('data:$mime;base64,${base64Encode(bytes)}');
-      } catch (_) {
-        // 单张图读失败不该让整次整理失败
-        continue;
+      for (final String path in paths) {
+        if (bundle.dataUrls.length >= maxImages) break;
+
+        try {
+          final file = await MediaStorage.resolve(path);
+          if (!await file.exists()) continue;
+
+          final int size = await file.length();
+          if (size > maxImageBytes || totalBytes + size > maxTotalImageBytes) {
+            continue;
+          }
+
+          final bytes = await file.readAsBytes();
+          final ext = p.extension(path).replaceFirst('.', '').toLowerCase();
+          final mime = switch (ext) {
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            _ => 'image/jpeg',
+          };
+          bundle.dataUrls.add('data:$mime;base64,${base64Encode(bytes)}');
+          sent++;
+          totalBytes += bytes.length;
+        } catch (_) {
+          // 单张图读失败不该让整次整理失败
+        }
+      }
+
+      if (sent > 0) {
+        bundle.sentCounts[item.id] = sent;
       }
     }
 
-    return dataUrls;
+    return bundle;
   }
 
-  List<OrganizeDraft> _parseDrafts(String reply) {
+  _ParsedDrafts _parseDrafts(String reply) {
     final String cleaned = _stripCodeFence(reply);
     final Object? decoded = jsonDecode(cleaned);
 
@@ -212,10 +260,23 @@ class OrganizeRepository {
       throw const OrganizeException('模型返回里没有 schedules 字段');
     }
 
-    return raw
-        .whereType<Map>()
-        .map((Map m) => OrganizeDraft.fromJson(m.cast<String, dynamic>()))
-        .toList();
+    final List<OrganizeDraft> drafts = <OrganizeDraft>[];
+    int skipped = 0;
+
+    // 单条草案格式错误只跳过这一条，不能让整批整理失败
+    for (final Object? entry in raw) {
+      if (entry is! Map) {
+        skipped++;
+        continue;
+      }
+      try {
+        drafts.add(OrganizeDraft.fromJson(entry.cast<String, dynamic>()));
+      } catch (_) {
+        skipped++;
+      }
+    }
+
+    return _ParsedDrafts(drafts, skipped);
   }
 
   /// 有些模型会无视指令，把 json 包在 ```json ... ``` 里。
@@ -228,6 +289,21 @@ class OrganizeRepository {
     if (t.endsWith('```')) t = t.substring(0, t.length - 3);
     return t.trim();
   }
+}
+
+class _ParsedDrafts {
+  const _ParsedDrafts(this.drafts, this.skipped);
+
+  final List<OrganizeDraft> drafts;
+  final int skipped;
+}
+
+class _ImageBundle {
+  final List<String> dataUrls = <String>[];
+
+  /// 每个条目实际发送了几张图 / 一共有几张图
+  final Map<int, int> sentCounts = <int, int>{};
+  final Map<int, int> totalCounts = <int, int>{};
 }
 
 /// 整理过程中的业务异常，UI 直接展示它的 message。

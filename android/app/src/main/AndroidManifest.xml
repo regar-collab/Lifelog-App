@@ -20,10 +20,17 @@
     <!-- 计步（读硬件计步传感器，Android 10+ 必须声明） -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
+    <!-- 日程提醒：重启后恢复定时通知 + 精确闹钟 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:label="Lifelog"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules">
 
         <!-- 高德地图 Key。
              值由 app/build.gradle.kts 从 local.properties 的 AMAP_KEY 注入，
@@ -60,6 +67,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <!-- 相册多选后分享走 SEND_MULTIPLE；不声明的话 App 不会出现在分享面板 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -73,6 +86,21 @@
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="location"
             android:exported="false" />
+
+        <!-- flutter_local_notifications 的定时通知与开机恢复 -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

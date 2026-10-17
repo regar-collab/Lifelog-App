@@ -1,7 +1,10 @@
 name: lifelog
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.1.0+1
+# versionCode 必须大于已安装的版本。旧的 arm64 分架构包是 2001
+# （Flutter 会给分架构包加 1000*ABI 偏移），所以这里直接从 2002 起，
+# 避免普通 debug/universal 包因版本号更低而被系统卸载重装。
+version: 0.2.0+2003
 
 environment:
   sdk: ^3.13.5
@@ -30,6 +33,9 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.6
   pedometer: ^4.2.0
+  flutter_local_notifications: ^22.3.2
+  timezone: ^0.11.2
+  flutter_timezone: ^5.1.1
 
 dev_dependencies:
   flutter_test:

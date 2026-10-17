@@ -16,11 +16,7 @@ import 'package:lifelog/core/utils/coordinate.dart';
 /// 原生侧在创建地图前用 MapsInitializer.setApiKey 注入。
 /// 不填的话地图出不来，但不影响其它功能。
 class AmapView extends StatefulWidget {
-  const AmapView({
-    super.key,
-    this.points = const [],
-    this.apiKey,
-  });
+  const AmapView({super.key, this.points = const [], this.apiKey});
 
   /// 轨迹点（GCJ-02）。空列表表示只显示地图，不画线。
   final List<LatLng> points;
@@ -41,12 +37,16 @@ class _AmapViewState extends State<AmapView> {
       return const Center(child: Text('地图目前只做了 Android'));
     }
 
+    final String apiKey = widget.apiKey?.trim() ?? '';
+
     return AndroidView(
+      // creationParams 只在 PlatformView 创建时读取一次。用户第一次进入
+      // 轨迹页时 Key 可能还在异步加载（空字符串），之后读到了也不会重建。
+      // 用 Key 强制换一个实例，原生侧才能拿到新的 Key 重新初始化地图。
+      key: ValueKey<String>('amap-$apiKey'),
       viewType: 'lifelog/amap',
       // Key 在建图之前就得给到原生侧，所以走 creationParams 而不是走 method channel
-      creationParams: <String, Object?>{
-        'apiKey': widget.apiKey ?? '',
-      },
+      creationParams: <String, Object?>{'apiKey': apiKey},
       creationParamsCodec: const StandardMessageCodec(),
       onPlatformViewCreated: _onPlatformViewCreated,
     );

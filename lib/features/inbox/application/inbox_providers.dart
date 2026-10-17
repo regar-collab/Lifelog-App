@@ -28,14 +28,22 @@ final inboxItemsProvider = StreamProvider<List<InboxItem>>(
   (Ref ref) => ref.watch(inboxRepositoryProvider).watchAll(),
 );
 
+/// 已归档的条目。收集箱页右上角可以切换查看。
+final archivedInboxItemsProvider = StreamProvider<List<InboxItem>>(
+  (Ref ref) => ref.watch(inboxRepositoryProvider).watchArchived(),
+);
+
 /// 待整理条数，给 Tab 角标用。
 final inboxPendingCountProvider = StreamProvider<int>(
   (Ref ref) => ref.watch(inboxRepositoryProvider).watchPendingCount(),
 );
 
 /// 某个条目的完整变更历史（创建 + 每次编辑），旧→新。
-final inboxRevisionsProvider =
-    StreamProvider.family<List<InboxItemRevision>, int>(
-  (Ref ref, int itemId) =>
-      ref.watch(inboxRepositoryProvider).watchRevisions(itemId),
-);
+///
+/// autoDispose：退出编辑页后释放 DB 流订阅，否则每打开过一条
+/// 就会永久残留一个监听器。
+final inboxRevisionsProvider = StreamProvider.autoDispose
+    .family<List<InboxItemRevision>, int>(
+      (Ref ref, int itemId) =>
+          ref.watch(inboxRepositoryProvider).watchRevisions(itemId),
+    );

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 及以下的自动备份规则。
+
+  数据库、图片正常参与云备份；但 flutter_secure_storage 的加密数据必须排除：
+  它依赖 AndroidKeyStore 里的私钥解密，而 KeyStore 不参与备份。
+  如果只恢复 SharedPreferences，数据将永远解不开。
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="FlutterSecureStorage" />
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage" />
+    <exclude domain="device_sharedpref" path="FlutterSecureStorage" />
+    <exclude domain="device_sharedpref" path="FlutterSecureKeyStorage" />
+</full-backup-content>

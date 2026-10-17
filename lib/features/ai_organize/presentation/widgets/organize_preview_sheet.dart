@@ -63,9 +63,14 @@ class _OrganizePreviewSheetState extends State<OrganizePreviewSheet> {
                       Text('整理结果', style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
                       Text(
-                        '共 ${drafts.length} 条，取消勾选不想留下的',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.outline),
+                        '共 ${drafts.length} 条。取消勾选只是不写入；'
+                        '来源内容仍会标记为已整理。'
+                        '重新整理会替换这些条目之前由 AI 生成的日程（包括改过的）'
+                        '${widget.outcome.skippedDrafts > 0 ? '；另有 '
+                                  '${widget.outcome.skippedDrafts} 条格式异常已跳过' : ''}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
@@ -79,9 +84,7 @@ class _OrganizePreviewSheetState extends State<OrganizePreviewSheet> {
                       }
                     });
                   },
-                  child: Text(
-                    _checked.every((bool c) => c) ? '全不选' : '全选',
-                  ),
+                  child: Text(_checked.every((bool c) => c) ? '全不选' : '全选'),
                 ),
               ],
             ),
@@ -106,15 +109,17 @@ class _OrganizePreviewSheetState extends State<OrganizePreviewSheet> {
                       const SizedBox(height: 3),
                       Text(
                         _timeLabel(draft),
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: theme.colorScheme.primary),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
                       if (draft.location != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           draft.location!,
-                          style: theme.textTheme.labelSmall
-                              ?.copyWith(color: theme.colorScheme.outline),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
                         ),
                       ],
                       if (draft.description != null) ...[
@@ -123,8 +128,9 @@ class _OrganizePreviewSheetState extends State<OrganizePreviewSheet> {
                           draft.description!,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall
-                              ?.copyWith(color: theme.colorScheme.outline),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
                         ),
                       ],
                     ],

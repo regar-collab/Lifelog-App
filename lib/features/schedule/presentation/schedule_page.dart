@@ -60,8 +60,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   void _syncHeader() {
     if (_syncing || !_hHead.hasClients || !_hBody.hasClients) return;
     _syncing = true;
-    final double target =
-        _hBody.offset.clamp(0.0, _hHead.position.maxScrollExtent);
+    final double target = _hBody.offset.clamp(
+      0.0,
+      _hHead.position.maxScrollExtent,
+    );
     _hHead.jumpTo(target);
     _syncing = false;
   }
@@ -139,8 +141,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final DateTime monday = _mondayOf(_anchor);
-    final AsyncValue<List<Schedule>> weekAsync =
-        ref.watch(weekSchedulesProvider(monday));
+    final AsyncValue<List<Schedule>> weekAsync = ref.watch(
+      weekSchedulesProvider(monday),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -159,6 +162,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'schedule-new-fab',
         onPressed: () => context.push('/schedule/new'),
         icon: const Icon(Icons.add),
         label: const Text('新建日程'),
@@ -171,10 +175,14 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
           const Divider(height: 1),
           Expanded(
             child: switch (weekAsync) {
-              AsyncData(:final List<Schedule> value) =>
-                _buildScrollableGrid(theme, monday, value),
-              AsyncError(:final Object error) =>
-                Center(child: Text('读取失败：$error')),
+              AsyncData(:final List<Schedule> value) => _buildScrollableGrid(
+                theme,
+                monday,
+                value,
+              ),
+              AsyncError(:final Object error) => Center(
+                child: Text('读取失败：$error'),
+              ),
               _ => const Center(child: CircularProgressIndicator()),
             },
           ),
@@ -205,14 +213,16 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                   isThisWeek
                       ? '本周'
                       : '${monday.month}月${monday.day}日 — '
-                          '${sunday.month}月${sunday.day}日',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                            '${sunday.month}月${sunday.day}日',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 Text(
                   '${monday.year} 年',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: theme.colorScheme.outline),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
                 ),
               ],
             ),
@@ -292,8 +302,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                         schedules: schedules.where((Schedule s) {
                           final DateTime d =
                               DateTime.fromMillisecondsSinceEpoch(s.startAt);
-                          return _sameDay(
-                              d, monday.add(Duration(days: i)));
+                          return _sameDay(d, monday.add(Duration(days: i)));
                         }).toList(),
                         hourHeight: hourHeight,
                         dayWidth: dayWidth,
@@ -385,8 +394,7 @@ class _DayColumn extends ConsumerWidget {
               right: 0,
               child: Container(
                 height: 0.5,
-                color:
-                    theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
               ),
             ),
 
@@ -394,8 +402,7 @@ class _DayColumn extends ConsumerWidget {
           if (isToday) _nowIndicator(theme),
 
           // 日程气泡
-          for (final _Laid item in laid)
-            _buildBubble(context, ref, item),
+          for (final _Laid item in laid) _buildBubble(context, ref, item),
         ],
       ),
     );
@@ -419,8 +426,9 @@ class _DayColumn extends ConsumerWidget {
     List<InboxItem>? sourceItems;
     bool sourceLoading = false;
     if (isExpanded) {
-      final AsyncValue<List<InboxItem>> async =
-          ref.watch(scheduleSourceItemsProvider(s.id));
+      final AsyncValue<List<InboxItem>> async = ref.watch(
+        scheduleSourceItemsProvider(s.id),
+      );
       switch (async) {
         case AsyncData(:final List<InboxItem> value):
           sourceItems = value;
@@ -432,8 +440,10 @@ class _DayColumn extends ConsumerWidget {
     }
 
     // 不展开时给死高度：高度 = 时长占比，最短 40（保证可点、能放下标题）
-    final double bubbleHeight =
-        (minutes / 60 * hourHeight).clamp(40.0, 24 * hourHeight);
+    final double bubbleHeight = (minutes / 60 * hourHeight).clamp(
+      40.0,
+      24 * hourHeight,
+    );
 
     return Positioned(
       top: top,

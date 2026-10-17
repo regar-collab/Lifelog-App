@@ -19,15 +19,23 @@ class SecureSettings {
 
   Future<void> delete(String key) => _storage.delete(key: key);
 
-  // ── DeepSeek ──────────────────────────────────────────────
-  Future<String?> get deepSeekApiKey =>
-      read(AppConstants.keyDeepSeekApiKey);
+  // ── DeepSeek（旧 Key，仅用于迁移）────────────────────────
+  Future<String?> get deepSeekApiKey => read(AppConstants.keyDeepSeekApiKey);
 
   Future<void> setDeepSeekApiKey(String value) =>
       write(AppConstants.keyDeepSeekApiKey, value);
 
-  Future<void> clearDeepSeekApiKey() =>
-      delete(AppConstants.keyDeepSeekApiKey);
+  Future<void> clearDeepSeekApiKey() => delete(AppConstants.keyDeepSeekApiKey);
+
+  // ── AI 供应商（每个供应商独立保存）───────────────────────
+  Future<String?> aiApiKey(String providerId) =>
+      read('${AppConstants.keyAiApiKeyPrefix}$providerId');
+
+  Future<void> setAiApiKey(String providerId, String value) =>
+      write('${AppConstants.keyAiApiKeyPrefix}$providerId', value);
+
+  Future<void> clearAiApiKey(String providerId) =>
+      delete('${AppConstants.keyAiApiKeyPrefix}$providerId');
 
   // ── 高德（轨迹模块用）────────────────────────────────────
   Future<String?> get amapApiKey => read(AppConstants.keyAmapApiKey);

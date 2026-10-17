@@ -30,13 +30,15 @@ class Schedules extends Table {
   /// planned | done | cancelled
   TextColumn get status => text().withDefault(const Constant('planned'))();
 
-  /// manual（手动建）| ai（AI 整理生成）
+  /// manual（手动建）| ai（AI 整理生成）| ai-edited（AI 生成后被用户改过）
   TextColumn get origin => text().withDefault(const Constant('manual'))();
 
   /// 由哪次 AI 整理产生，便于整批撤销
-  IntColumn get aiRunId => integer()
-      .nullable()
-      .references(AiRuns, #id, onDelete: KeyAction.setNull)();
+  IntColumn get aiRunId => integer().nullable().references(
+    AiRuns,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   /// JSON 数组，溯源到收集箱条目 id
   TextColumn get sourceItemIds => text().nullable()();

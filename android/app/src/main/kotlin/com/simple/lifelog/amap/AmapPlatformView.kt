@@ -34,7 +34,10 @@ class AmapPlatformView(
     apiKey: String?,
 ) : PlatformView, MethodChannel.MethodCallHandler {
 
-    private val mapView: MapView = MapView(context)
+    // 注意：Kotlin 的属性初始化在 init 块之前执行。如果在这里直接
+    // `= MapView(context)`，MapView 会先于下面的 setApiKey / 隐私声明创建，
+    // 正好和高德的要求相反（表现为灰网格且不报错）。
+    private lateinit var mapView: MapView
     private val channel = MethodChannel(messenger, "lifelog/amap_$id")
     private var polyline: Polyline? = null
 
@@ -51,6 +54,8 @@ class AmapPlatformView(
         MapsInitializer.updatePrivacyShow(context, true, true)
         MapsInitializer.updatePrivacyAgree(context, true)
 
+        // 以上都完成后才能创建 MapView
+        mapView = MapView(context)
         mapView.onCreate(null)
         mapView.onResume()
 

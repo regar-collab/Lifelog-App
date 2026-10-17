@@ -57,8 +57,9 @@ class _ScheduleEditPageState extends ConsumerState<ScheduleEditPage> {
   }
 
   Future<void> _load() async {
-    final Schedule? s =
-        await ref.read(scheduleRepositoryProvider).findById(widget.scheduleId!);
+    final Schedule? s = await ref
+        .read(scheduleRepositoryProvider)
+        .findById(widget.scheduleId!);
     if (!mounted) return;
     if (s == null) {
       setState(() => _loading = false);
@@ -88,19 +89,47 @@ class _ScheduleEditPageState extends ConsumerState<ScheduleEditPage> {
     );
     if (picked == null || !mounted) return;
 
+    // 保留「跨夜」信息：原来结束是次日 01:00，换日期后仍然是次日 01:00
+    final DateTime? oldEnd = _endAt;
+    int endDayOffset = 0;
+    if (oldEnd != null) {
+      final DateTime oldStartDay = DateTime(
+        _startAt.year,
+        _startAt.month,
+        _startAt.day,
+      );
+      final DateTime oldEndDay = DateTime(
+        oldEnd.year,
+        oldEnd.month,
+        oldEnd.day,
+      );
+      endDayOffset = oldEndDay.difference(oldStartDay).inDays;
+    }
+
     setState(() {
       _startAt = DateTime(
-          picked.year, picked.month, picked.day, _startAt.hour, _startAt.minute);
-      final DateTime? e = _endAt;
-      if (e != null) {
-        _endAt = DateTime(picked.year, picked.month, picked.day, e.hour, e.minute);
+        picked.year,
+        picked.month,
+        picked.day,
+        _startAt.hour,
+        _startAt.minute,
+      );
+      if (oldEnd != null) {
+        _endAt = DateTime(
+          picked.year,
+          picked.month,
+          picked.day + endDayOffset,
+          oldEnd.hour,
+          oldEnd.minute,
+        );
       }
     });
   }
 
   Future<void> _pickTime({required bool isStart}) async {
-    final DateTime base =
-        isStart ? _startAt : (_endAt ?? _startAt.add(const Duration(hours: 1)));
+    final DateTime base = isStart
+        ? _startAt
+        : (_endAt ?? _startAt.add(const Duration(hours: 1)));
 
     final TimeOfDay? picked = await showTimePicker(
       context: context,
@@ -118,24 +147,46 @@ class _ScheduleEditPageState extends ConsumerState<ScheduleEditPage> {
       );
       if (isStart) {
         _startAt = dt;
-        // 结束时间早于开始时间就顺手推后一小时，避免存出负数时长
-        if (_endAt != null && _endAt!.isBefore(_startAt)) {
+        // 结束时间不晚于开始时间就顺手推后一小时，避免存出负数时长
+        if (_endAt != null && !_endAt!.isAfter(_startAt)) {
           _endAt = _startAt.add(const Duration(hours: 1));
         }
       } else {
-        _endAt = dt;
+        // 选到比开始更早的时刻，视为次日（例如 23:00 → 01:00）
+        _endAt = dt.isAfter(_startAt) ? dt : dt.add(const Duration(days: 1));
       }
     });
   }
 
+  /// 结束时间可能落在次日，显示时要说清楚，避免用户以为是同一天。
+  String _endTimeLabel(DateTime end) {
+    final DateTime startDay = DateTime(
+      _startAt.year,
+      _startAt.month,
+      _startAt.day,
+    );
+    final DateTime endDay = DateTime(end.year, end.month, end.day);
+    final int offset = endDay.difference(startDay).inDays;
+    final String time = DateFormat('HH:mm').format(end);
+    if (offset <= 0) return time;
+    if (offset == 1) return '次日 $time';
+    return '+$offset 天 $time';
+  }
+
   Future<void> _save() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     final String title = _titleController.text.trim();
 
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('给它起个标题吧')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('给它起个标题吧')));
+      return;
+    }
+
+    if (!_isAllDay && _endAt != null && !_endAt!.isAfter(_startAt)) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('结束时间必须晚于开始时间')));
       return;
     }
 
@@ -144,34 +195,44 @@ class _ScheduleEditPageState extends ConsumerState<ScheduleEditPage> {
     final String desc = _descController.text.trim();
     final String loc = _locationController.text.trim();
 
-    if (!_isEditMode) {
-      await repo.addManual(
-        title: title,
-        startAt: _startAt,
-        description: desc.isEmpty ? null : desc,
-        endAt: _isAllDay ? null : _endAt,
-        isAllDay: _isAllDay,
-        location: loc.isEmpty ? null : loc,
-        priority: _priority,
-      );
-    } else {
-      final Schedule? s = _editing;
-      if (s == null) return;
-      await repo.edit(
-        s,
-        title: title,
-        description: desc,
-        startAt: _startAt,
-        endAt: _isAllDay ? null : _endAt,
-        clearEndAt: _isAllDay || _endAt == null,
-        isAllDay: _isAllDay,
-        location: loc,
-        priority: _priority,
-      );
-    }
+    try {
+      if (!_isEditMode) {
+        await repo.addManual(
+          title: title,
+          startAt: _startAt,
+          description: desc.isEmpty ? null : desc,
+          endAt: _isAllDay ? null : _endAt,
+          isAllDay: _isAllDay,
+          location: loc.isEmpty ? null : loc,
+          priority: _priority,
+        );
+      } else {
+        final Schedule? s = _editing;
+        if (s == null) {
+          setState(() => _saving = false);
+          return;
+        }
+        await repo.edit(
+          s,
+          title: title,
+          description: desc,
+          startAt: _startAt,
+          endAt: _isAllDay ? null : _endAt,
+          clearEndAt: _isAllDay || _endAt == null,
+          isAllDay: _isAllDay,
+          location: loc,
+          priority: _priority,
+        );
+      }
 
-    if (!mounted) return;
-    context.pop();
+      if (!mounted) return;
+      context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('保存失败：$e')));
+    }
   }
 
   Future<void> _delete() async {
@@ -270,9 +331,7 @@ class _ScheduleEditPageState extends ConsumerState<ScheduleEditPage> {
                   _FieldTile(
                     icon: Icons.schedule_outlined,
                     label: '结束',
-                    value: _endAt == null
-                        ? '未设置'
-                        : DateFormat('HH:mm').format(_endAt!),
+                    value: _endAt == null ? '未设置' : _endTimeLabel(_endAt!),
                     onTap: () => _pickTime(isStart: false),
                     trailing: _endAt == null
                         ? null
@@ -317,11 +376,14 @@ class _ScheduleEditPageState extends ConsumerState<ScheduleEditPage> {
 
                 if (_isEditMode) ...[
                   const SizedBox(height: 28),
-                  if (_editing?.origin == 'ai') ...[
+                  if (_editing?.origin.startsWith('ai') ?? false) ...[
                     Row(
                       children: [
-                        Icon(Icons.auto_awesome,
-                            size: 16, color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 16,
+                          color: theme.colorScheme.primary,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           '这条是 AI 整理的产物',
@@ -392,8 +454,9 @@ class _FieldTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest
-              .withValues(alpha: 0.4),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.4,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -404,8 +467,9 @@ class _FieldTile extends StatelessWidget {
             const Spacer(),
             Text(
               value,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.primary),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
             ),
             ?trailing,
           ],

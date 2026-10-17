@@ -14,7 +14,10 @@ class InboxItems extends Table {
   /// 文字内容；图片类型时这里是用户备注，可为空
   TextColumn get content => text().nullable()();
 
-  /// 图片相对路径，如 images/2026/10/xxx.jpg（相对应用私有目录）
+  /// 图片相对路径，如 images/2026/10/xxx.jpg（相对应用私有目录）。
+  ///
+  /// 一张图时是纯路径；多张图时是 JSON 数组字符串。
+  /// 用文本列兼容旧数据，避免为多图单独建表。
   TextColumn get imagePath => text().nullable()();
 
   /// OCR 结果。走「图片直传视觉模型」时这里留空

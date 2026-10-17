@@ -55,32 +55,34 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator m) async {
-          await m.createAll();
-          await _createIndexes();
-        },
-        onUpgrade: (Migrator m, int from, int to) async {
-          if (from < 2) {
-            // 新增列。Drift 会自动带上默认值 'auto'。
-            await m.addColumn(inboxItems, inboxItems.organizePolicy);
-            await m.createTable(inboxItemRevisions);
+    onCreate: (Migrator m) async {
+      await m.createAll();
+      await _createIndexes();
+    },
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 2) {
+        // 新增列。Drift 会自动带上默认值 'auto'。
+        await m.addColumn(inboxItems, inboxItems.organizePolicy);
+        await m.createTable(inboxItemRevisions);
 
-            // 给已有条目补一条「创建」历史，否则老数据点进去历史是空的
-            await m.database.customStatement(
-              'INSERT INTO inbox_item_revisions (item_id, kind, content, recorded_at) '
-              'SELECT id, \'created\', content, created_at FROM inbox_items',
-            );
-          }
-          if (from < 3) {
-            await m.createTable(dailySteps);
-          }
-          await _createIndexes();
-        },
-        beforeOpen: (OpeningDetails details) async {
-          // 级联删除（轨迹点随会话、历史随条目）依赖这个开关
-          await customStatement('PRAGMA foreign_keys = ON');
-        },
-      );
+        // 给已有条目补一条「创建」历史，否则老数据点进去历史是空的
+        await m.database.customStatement(
+          'INSERT INTO inbox_item_revisions (item_id, kind, content, recorded_at) '
+          'SELECT id, \'created\', content, created_at FROM inbox_items',
+        );
+      }
+      if (from < 3) {
+        await m.createTable(dailySteps);
+      }
+      await _createIndexes();
+    },
+    beforeOpen: (OpeningDetails details) async {
+      // 级联删除（轨迹点随会话、历史随条目）依赖这个开关
+      await customStatement('PRAGMA foreign_keys = ON');
+      // 老版本数据库不会走 onUpgrade，这里补一次索引（IF NOT EXISTS 幂等）
+      await _createIndexes();
+    },
+  );
 
   /// Drift 不会为普通列自动建索引，这些查询在数据量上来后很关键。
   /// 用 IF NOT EXISTS，升级时重复执行也不会出错。
@@ -103,6 +105,11 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_point_session '
       'ON track_points(session_id, recorded_at)',
+    );
+    // 「今天走了多少」按 recorded_at 跨会话查询，上面的组合索引帮不上忙
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_point_time '
+      'ON track_points(recorded_at)',
     );
   }
 }

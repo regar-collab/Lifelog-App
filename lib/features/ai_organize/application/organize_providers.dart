@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lifelog/data/db/app_database.dart';
 import 'package:lifelog/data/db/daos/ai_run_dao.dart';
 import 'package:lifelog/data/db/database_provider.dart';
 import 'package:lifelog/features/ai_organize/data/organize_repository.dart';
@@ -21,6 +20,9 @@ final organizeRepositoryProvider = Provider<OrganizeRepository>(
 );
 
 /// 最近的整理记录，新→旧。
-final aiRunsProvider = StreamProvider<List<AiRun>>(
-  (Ref ref) => ref.watch(aiRunDaoProvider).watchRecent(),
+///
+/// autoDispose + 摘要查询：离开整理页后释放订阅，且不把整段
+/// prompt / rawResponse 留在内存里。
+final aiRunsProvider = StreamProvider.autoDispose<List<AiRunSummary>>(
+  (Ref ref) => ref.watch(aiRunDaoProvider).watchRecentSummaries(),
 );

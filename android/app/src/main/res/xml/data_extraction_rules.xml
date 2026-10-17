@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ 的备份 / 换机迁移规则。
+
+  与 backup_rules.xml 同理：必须排除 flutter_secure_storage 的 SharedPreferences，
+  否则恢复后没有对应的 KeyStore 私钥，API Key 会变成永远读不出来的密文。
+  其余数据（数据库、图片）允许备份。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="FlutterSecureStorage" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage" />
+        <exclude domain="device_sharedpref" path="FlutterSecureStorage" />
+        <exclude domain="device_sharedpref" path="FlutterSecureKeyStorage" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="FlutterSecureStorage" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage" />
+        <exclude domain="device_sharedpref" path="FlutterSecureStorage" />
+        <exclude domain="device_sharedpref" path="FlutterSecureKeyStorage" />
+    </device-transfer>
+</data-extraction-rules>

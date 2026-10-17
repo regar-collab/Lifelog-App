@@ -17,6 +17,21 @@ val localProperties = Properties().apply {
     }
 }
 
+/// 正式签名配置。android/key.properties 不进版本库（见 .gitignore）。
+///
+/// 没配置时 release 仍然能构建（继续用 debug 签名），但**绝不能分发**：
+/// debug keystore 是公开的，任何人都能伪造同签名升级包。
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+val releaseStoreFile = keystoreProperties
+    .getProperty("storeFile")
+    ?.let { rootProject.file(it) }
+val hasReleaseSigning = releaseStoreFile?.exists() == true
+
 android {
     namespace = "com.simple.lifelog"
     // 固定为 37（而不是 flutter.compileSdkVersion，默认是 36）：
@@ -27,11 +42,14 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // flutter_local_notifications 的定时通知需要 desugaring
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
     defaultConfig {
+        multiDexEnabled = true
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.simple.lifelog"
         // You can update the following values to match your application needs.
@@ -52,11 +70,30 @@ android {
             localProperties.getProperty("AMAP_KEY") ?: ""
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 配了 key.properties 就用正式签名；否则退回 debug，仅方便本地跑
+            // `flutter run --release`，这种包不可对外分发。
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "⚠️ 未配置 android/key.properties：release 包正在使用 debug 签名，" +
+                        "仅限本地测试，请勿分发。参考 android/key.properties.example。"
+                )
+                signingConfigs.getByName("debug")
+            }
 
             // 显式打开混淆，并挂上我们的 keep 规则。
             //
@@ -80,6 +117,9 @@ kotlin {
 }
 
 dependencies {
+    // flutter_local_notifications 的定时通知需要 Java 8+ API desugaring
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
     // 高德地图 SDK。
     // 刻意不走 amap_flutter_map 那类 Flutter 插件 —— 官方插件 2022 年起停更，
     // 在 AGP 8+ / 新 Flutter 上编译不过。自己用 PlatformView 包一层，

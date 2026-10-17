@@ -5,19 +5,13 @@ class AppConstants {
   /// 启动器上显示的应用名（要改中文名就改这里）
   static const String appName = 'Lifelog';
 
-  // ── DeepSeek ──────────────────────────────────────────────
-  static const String deepseekBaseUrl = 'https://api.deepseek.com';
-  static const String deepseekChatPath = '/chat/completions';
-
-  /// AI 整理统一用这个模型。
-  ///
-  /// deepseek-flash 是原生多模态的，纯文本和图片都能处理，
-  /// 所以不需要按「有没有图」切换模型。
-  /// 不使用 deepseek-reasoner（推理模型）：慢、贵，整理日程这种任务用不上。
-  static const String deepseekModel = 'deepseek-flash';
-
   // ── 安全存储的 key（flutter_secure_storage）──────────────
+  /// 旧版 DeepSeek Key，保留用于自动迁移到 ai_api_key_deepseek。
   static const String keyDeepSeekApiKey = 'deepseek_api_key';
+
+  /// 各 AI 供应商的 Key 前缀，完整 key 形如 ai_api_key_deepseek。
+  static const String keyAiApiKeyPrefix = 'ai_api_key_';
+
   static const String keyAmapApiKey = 'amap_api_key';
 
   // ── 数据库 ────────────────────────────────────────────────

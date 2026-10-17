@@ -1,0 +1,16 @@
+# 复制本文件为 android/key.properties，并填入自己的签名信息。
+# 这两个文件（key.properties 和 *.jks）都已被 .gitignore 排除，不会进版本库。
+#
+# 1. 在 android/ 目录生成 keystore：
+#    keytool -genkeypair -v -keystore lifelog-release.jks \
+#      -keyalg RSA -keysize 2048 -validity 10000 -alias lifelog
+#
+# 2. 把下面四项换成实际值。storeFile 相对路径按 android/ 目录解析，
+#    也可以直接写绝对路径。
+#
+# 3. 妥善备份 .jks 和密码：丢失后就无法再发布同签名的新版本。
+
+storeFile=lifelog-release.jks
+storePassword=换成你的密码
+keyAlias=lifelog
+keyPassword=换成你的密码
